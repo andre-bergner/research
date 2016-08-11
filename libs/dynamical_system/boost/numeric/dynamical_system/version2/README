@@ -1,0 +1,4 @@
+version2:
+ - network size is fixed
+ - ode::state is of type array using naive operator overloading utilizing boos::operators
+

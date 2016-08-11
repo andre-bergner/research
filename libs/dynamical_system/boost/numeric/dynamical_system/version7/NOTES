@@ -1,0 +1,6 @@
+TODO
+- network tools:
+  - link list of nodes to one given node (for example to create stars)
+    e.g.  add_nodes ( vertex_descriptor n , pair<vertex_iterator,vertex_iterator> m )
+  - mutually couple nodes
+  - diffusively couple nodes

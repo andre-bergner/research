@@ -1,0 +1,11 @@
+CHANGES:
+- coupling is now a property of the links/edges, i.e. usage like this:
+    ode_network< roessler , coupling::diffusive<0,1> >
+  couples roessler oscillators with with system state 0 to 1
+
+TODO
+- network tools:
+  - link list of nodes to one given node (for example to create stars)
+    e.g.  add_nodes ( vertex_descriptor n , pair<vertex_iterator,vertex_iterator> m )
+  - mutually couple nodes
+  - diffusively couple nodes

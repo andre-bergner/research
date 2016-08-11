@@ -1,0 +1,106 @@
+   ___________
+   design goal
+
+   class(es) / framework  for modeling  defining and controlling complex systems,
+   i.e. networks of dynamical systems
+
+
+   ____________
+   some aspects
+   
+   the defined complex system could be
+   - a network of ODEs
+   - a PDE
+   - a network of maps
+   - a network cellular automat
+
+   _________________________
+   parts of dynamical system
+
+   there are in principle three parts:
+   - fast states:
+     these are the dynamical state variables, often named x,y,z,u
+
+   - slow states:
+     these are the coefficiants which are usually chosen to have some fixed value
+     often named a,b,c,alpha,beta,...
+
+   - fixed states:
+     the topology of the systems syntax, i.e. the operation tree,
+     e.g. a*x*y  +  b*(x-c*y)
+     where a,b,c  are constants which are fixed, ut could in principle be varied,
+     slowly however.
+     x and y are the dynamical state variable, which change is described by an update
+     rule (difference or differential equation)
+     the structure . * . * .  +  . * ( . - . )   is fixed
+
+
+
+
+
+   ____________________
+   vector -- vs -- list
+   - pro list:    nodes/links can be added/removed fast
+   - pro vector:  nodes/links most likely will be added/removed rarely compared to average
+                  operation number, in particaluar the generation of temp. states in the stepper
+
+   _________________________________________________________________
+   container of containers (coc) -- vs -- one large contatiner (olc)
+   - pro coc:  addressing nodes is very efficient
+   - pro olc:  when integrating the system their is just one large loop
+               opposed of many short ones in coc
+
+
+   ________________________________________________________________
+   state is part of system -- vs -- parallel existing state
+
+
+
+
+
+   ________________________________________
+   solving odeint just one state_type issue
+
+   - use proxy class to wrap to different types
+   - standard c'tor generates 'simple' type
+   - secret c'tor wraps  mengled network-type
+
+
+   _______________________
+   realization of coupling
+
+   1. use input type into ()-operator of node
+      input type must be defined elsewehere
+      input type is out put of coupling function  --> those must fit
+
+      e.g.
+      node:
+      class  MySystem : public static_ode_helper< 3 > {       // 3-d system
+         ...
+         void operator() ( const State& x , State & dx , const double & t , const Input & in ) {
+            dx[0] = sin( x[0]+in[0] ) * x[1] + ...;
+            dx[1] = in[1]*in[2] + in[3]*x[2];
+            dx[2] = dx[0]*a;
+         }
+      };
+
+      class  MyCoupling : public static_link_helper<4> {  // 4-d coupling
+         ...
+         Input  operator( StateIterator x_first , StateIterator x_last ) {
+            Input in();
+            while ( x_first != x_last ) {
+               in[0] = (*x_first)[0] * b  + (*x_first)[1];
+               ...
+            }
+            in[3] = (in[0] + in[1]) * tanh(in[2]);
+         }
+
+      };
+
+   2. ()-operator gets iterators to input nodes
+      --> thus it can acces their states (assuming those are part of them)
+
+
+
+
+
