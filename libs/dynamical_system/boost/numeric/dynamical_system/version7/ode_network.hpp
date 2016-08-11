@@ -152,17 +152,16 @@ namespace odeint {
       return  g [ add_edge ( vv.first , vv.second , g ).first ];
    }
 
-   // wrapper class
-   class _node {
-      size_t  i;
-   public:
-      _node ( size_t _ ) : i(_) { }
-      operator size_t () { return i; }
-   };
+
+
+   struct vertex_wrapper { const size_t index; };
+
+   auto vtx(size_t n) { return vertex_wrapper{n}; }
 
    // connector operator
-   std::pair<_node,_node>  operator <= ( const _node& _1 , const _node& _2 ) {
-      return  std::make_pair( _2 , _1 );
+   std::pair<size_t,size_t>  operator <= ( vertex_wrapper target , vertex_wrapper source )
+   {
+      return  std::make_pair( source.index , target.index );
    }
 
 

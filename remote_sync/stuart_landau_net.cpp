@@ -1,62 +1,29 @@
-/*
- *   g++ -O3 -I ../../odeint -I ../../../lib 
- */
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <numeric>   // for inner_product
+#include <numeric>
 
 #include <tclap/CmdLine.h>
 
 #include <boost/numeric/odeint.hpp>
+#include <boost/range/irange.hpp>
 
 #include <boost/numeric/dynamical_system/coupling.hpp>
 #include <boost/numeric/dynamical_system/ode_network.hpp>
 
-using namespace std;
-using namespace boost::numeric::odeint;
-using namespace TCLAP;
-
-using boost::tie;
-
-
-///////////////////////////////////////////////////////////////////
-//
-//  the parameters of the program
-//
 
 //#  define      __COMPUTE_LYAPUNOV_SPECTRUM__
-
-const char app_version[] = "0.7";
-
-double
-   cpl      = 0.5,   // coupling                   [0..max]
-   amp      = 1.0,   // amplitude/hopf parameter
-   w_0      = 2.5,
-   w_width  = 0.05,
-   dt       = 0.05;
-
-int
-   N_samples = 10000,
-   node_num  = 5;  // number of nodes in network
-
-
-bool    verbose_output = false;
-
-string
-   adj_file = "",
-   frq_file = "",
-   file_name = "";
-
-void  parse_options ( int arg_num , char** arg );
-
 
 
 ////////////////////////////////////////////////////////////////////
 //
 //  DEFINITION OF SYSTEMS
 //
+
+using boost::numeric::odeint::ode;       // FIXME custom namespace
+using boost::numeric::odeint::state_t;   // FIXME custom namespace
+using boost::numeric::odeint::vtx;       // FIXME custom namespace
 
 
 /////////////////////////////////////////////////////////////////
@@ -417,7 +384,7 @@ template< class iterator , class T >
 T  my_inner_product ( iterator first1 , iterator last1 , iterator first2 , T ) {
    T t = 0.0;
    while ( first1 != last1 ) {
-      t  +=  inner_product( first1->begin() , first1->end() , first2->begin() , 0.0);
+      t  +=  std::inner_product( first1->begin() , first1->end() , first2->begin() , 0.0);
       ++first1;
       ++first2;
    }
@@ -425,34 +392,42 @@ T  my_inner_product ( iterator first1 , iterator last1 , iterator first2 , T ) {
 }
 
 
-template < class sys_state , class lyap_type >
-void gram_schmidt ( sys_state *U , lyap_type & lyap )
+template <class sys_state, class lyap_type>
+void gram_schmidt( sys_state& U , lyap_type& lyap )
 {
    size_t  N = U[0].size() * U[0][0].size();    // # of nodes * dimension of single system
 
    double norm;
 
-   norm = sqrt( my_inner_product( U[0].begin() , U[0].end() ,U[0].begin() , 0.0 ) );
+   norm = sqrt( my_inner_product( U[0].begin(), U[0].end(), U[0].begin() , 0.0 ) );
    normalize( U[0].begin() , U[0].end() , 1./norm );
    lyap[0]  +=  log ( norm );
 
    for ( size_t n=1 ; n < N ; ++n ) {
 
-      sys_state  v( U[n] );   // assumming const state type
+      auto v = U[n];   // assumming const state type
 
       for ( size_t m=0 ; m < n ; ++m ) {
-         double  ip = my_inner_product( v.begin() , v.end() , U[m].begin() , 0.0 );
+         double  ip = my_inner_product( v.begin(), v.end(), U[m].begin() , 0.0 );
          subtract_vector( U[n].begin() , U[n].end() , U[m].begin() , ip );
       }
 
-      norm = sqrt( my_inner_product( U[n].begin() , U[n].end() ,U[n].begin() , 0.0 ) );
+      norm = sqrt( my_inner_product( U[n].begin(), U[n].end(), U[n].begin() , 0.0 ) );
       normalize( U[n].begin() , U[n].end() , 1./norm );
       lyap[n]  +=  log ( norm );
    }
 }
 
 
+
+
+
+
 /////////////////////////////////////////////////////////////////////////////////
+//
+//  graph models
+
+
 
 //////////    o   o    /////////////////////
 //////////     \ /     /////////////////////
@@ -460,14 +435,15 @@ void gram_schmidt ( sys_state *U , lyap_type & lyap )
 //////////     / \     /////////////////////
 //////////    o   o    /////////////////////
 
-template< class graph >
-void star( graph & g ) {
-
+template <class Graph>
+void star( Graph& g, int node_num, double w_0, double w_width )
+{
    g.clear();
 
-   for ( size_t n = 1 ; n < node_num ; ++n ) {
-      add_link ( g , _node(n) <= _node(0) ).weight =  1.0;
-      add_link ( g , _node(0) <= _node(n) ).weight =  1.0 / double(node_num-1);
+   for ( auto n : boost::irange(1,node_num) )
+   {
+      add_link( g , vtx(n) <= vtx(0) ).weight = 1.0;
+      add_link( g , vtx(0) <= vtx(n) ).weight = 1.0 / double(node_num-1);
 //      g[n].set_w( 1.0 + 0.01*n );
 //      g[n].set_w( 0.975 + 0.01*n );
       if ( node_num == 2 )
@@ -488,23 +464,23 @@ void star( graph & g ) {
 //////////     / \    / \    /////////////////////
 //////////    o   o  o   o   /////////////////////
 
-template< class graph >
-void twin_star( graph & g ) {
-
+template <class Graph>
+void twin_star( Graph& g, int node_num )
+{
    double w = 2.5;
 
-//   add_link ( g , _node(0) <= _node(0) ).weight =  -1.0;
-//   add_link ( g , _node(1) <= _node(1) ).weight =  -1.0;
-   add_link ( g , _node(0) <= _node(1) ).weight =  1.0 / double( node_num/2 );
-   add_link ( g , _node(1) <= _node(0) ).weight =  1.0 / double( node_num/2 );
+//   add_link( g , vtx(0) <= vtx(0) ).weight =  -1.0;
+//   add_link( g , vtx(1) <= vtx(1) ).weight =  -1.0;
+   add_link( g , vtx(0) <= vtx(1) ).weight =  1.0 / double( node_num/2 );
+   add_link( g , vtx(1) <= vtx(0) ).weight =  1.0 / double( node_num/2 );
    g[0].set_w( 2.50 );
    g[1].set_w( 2.51 );
    for ( size_t n = 2 ; n < node_num ; ++n ) {
       int  c  =  n & 1;
-      add_link ( g , _node(n) <= _node(c) ).weight =  1.0;
-//      add_link ( g , _node(n) <= _node(n) ).weight = -1.0;
-//      add_link ( g , _node(c) <= _node(n) ).weight =  1.0 / double( (node_num-2)/2 + 1 - c );
-      add_link ( g , _node(c) <= _node(n) ).weight =  1.0 / double( node_num/2 );
+      add_link( g , vtx(n) <= vtx(c) ).weight =  1.0;
+//      add_link( g , vtx(n) <= vtx(n) ).weight = -1.0;
+//      add_link( g , vtx(c) <= vtx(n) ).weight =  1.0 / double( (node_num-2)/2 + 1 - c );
+      add_link( g , vtx(c) <= vtx(n) ).weight =  1.0 / double( node_num/2 );
       g[n].set_w( 1.0 + 0.005*n );
    }
 }
@@ -515,85 +491,75 @@ void twin_star( graph & g ) {
 //////////               /////////////////////
 //////////   O-o-o-o-O   /////////////////////
 //////////               /////////////////////
-template< class graph >
-void chain( graph & g ) {
-
+template <class Graph>
+void chain( Graph& g, int node_num )
+{
    size_t n = 0;
-   add_link ( g , _node(n) <= _node(n+1) ).weight =  1.0;
-   add_link ( g , _node(n) <= _node(n)   ).weight = -1.0;
+   add_link( g , vtx(n) <= vtx(n+1) ).weight =  1.0;
+   add_link( g , vtx(n) <= vtx(n)   ).weight = -1.0;
 //   g[n].set_w( sqrt(8.) );
    g[n].set_w( 2.5 );
    for ( ++n ; n < node_num-1 ; ++n ) {
-      add_link ( g , _node(n) <= _node(n+1) ).weight =  1.0;
-      add_link ( g , _node(n) <= _node(n-1) ).weight =  1.0;
-      add_link ( g , _node(n) <= _node(n)   ).weight = -2.0;
+      add_link( g , vtx(n) <= vtx(n+1) ).weight =  1.0;
+      add_link( g , vtx(n) <= vtx(n-1) ).weight =  1.0;
+      add_link( g , vtx(n) <= vtx(n)   ).weight = -2.0;
       g[n].set_w( 1.0 + 0.01*n );
    }
-   add_link ( g , _node(n) <= _node(n-1) ).weight =  1.0;
-   add_link ( g , _node(n) <= _node(n)   ).weight = -1.0;
+   add_link( g , vtx(n) <= vtx(n-1) ).weight =  1.0;
+   add_link( g , vtx(n) <= vtx(n)   ).weight = -1.0;
    g[n].set_w( 2.52 );
 }
 
 
-/*
- //  just a pair of oscillators
-   add_link (  s , _node(0) <= _node(1) ).weight =  1.0;
-   add_link (  s , _node(1) <= _node(0) ).weight =  1.0;
-   add_link ( ls , _node(0) <= _node(1) ).weight =  1.0;
-   add_link ( ls , _node(1) <= _node(0) ).weight =  1.0;
-
-   s[1].set_w( 1.0 );
-  ls[1].set_w( 1.0 );
-*/
 
 
 
 
 
-template <
-   class Graph >
-void print_graph ( Graph g ) {
-
-   for ( typename Graph::vertex_iterator
-           node  = vertices(g).first;  node != vertices(g).second; ++node ) {
-
-//      cout << *node << " <-- ";
-      cout << *node << " [ " << g[*node].a << ", " << g[*node].c << ", " << g[*node].w << " ]  <-- ";
-
-      for ( typename Graph::in_edge_iterator
-              link  = in_edges(*node,g).first;  link != in_edges(*node,g).second; ++link )
-//         cout << source ( *link , g ) << "  ";
-         cout << source ( *link , g ) << " [ " << g[*link].weight << " ] , ";
-
-      cout << endl; }}
+namespace std
+{
+   template <typename Iter>  auto begin( pair<Iter,Iter> p )  { return p.first; }
+   template <typename Iter>  auto end( pair<Iter,Iter> p )    { return p.second; }
+}
 
 
 
+template <class Graph>
+void print_graph ( Graph g )
+{
+   using namespace std;
+
+   for ( auto const& v : vertices(g) )
+   {
+      cout << v << " [ " << g[v].a << ", " << g[v].c << ", " << g[v].w << " ]  <-- ";
+
+      for ( auto const& e : in_edges(v,g) )
+         cout << source ( e , g ) << " [ " << g[e].weight << " ] , ";
+
+      cout << endl;
+   }
+}
 
 
 
-template <
-   class Graph1,
-   class Graph2 >
-void copy_topology ( const Graph1 & g1, Graph2 & g2 ) {
-
+template <class Graph1, class Graph2>
+void copy_topology( Graph1 const& g1, Graph2& g2 )
+{
    g2.clear();
 
-   typename boost::graph_traits<Graph1>::vertex_iterator  vi, vi_end;
-
-   for ( tie(vi, vi_end) = vertices(g1);  vi != vi_end ;  ++vi) {
-      typename boost::graph_traits<Graph1>::out_edge_iterator  ei, ei_end;
-      for ( tie(ei, ei_end) = out_edges(*vi, g1);  ei != ei_end ;  ++ei ) {
+   for ( auto const& v : vertices(g1) )
+   {
+      for ( auto const& e : out_edges(v,g1) )
+      {
          typename boost::graph_traits<Graph2>::edge_descriptor new_e;
-         bool inserted;
-         tie(new_e, inserted) = add_edge( source(*ei, g1), target(*ei, g1), g2 );
-         g2[new_e].weight = g1[*ei].weight;
-//         cout << g1[*ei].weight  << endl;
-         }
-      g2[*vi].a = g1[*vi].a;
-      g2[*vi].c = g1[*vi].c;
-      g2[*vi].w = g1[*vi].w;
-      }}
+         tie(new_e, std::ignore) = add_edge( source(e,g1), target(e,g1), g2 );
+         g2[new_e].weight = g1[e].weight;
+      }
+      g2[v].a = g1[v].a;
+      g2[v].c = g1[v].c;
+      g2[v].w = g1[v].w;
+   }
+}
 
 
 
@@ -601,24 +567,29 @@ void copy_topology ( const Graph1 & g1, Graph2 & g2 ) {
 
 
 
-template < class Graph >
-void read_adj_matrix( istream & is , Graph & g ) {
-
+template <class Graph>
+void read_adj_matrix( std::istream& is , Graph& g )
+{
    g.clear();
 
-   string  line;
+   std::string  line;
    long    n_target = 0;
-   while ( getline(is,line) ) {
-      istringstream sline( line );
+   while ( getline(is,line) )
+   {
+      std::istringstream sline( line );
       double x;
       long   n_source = 0;
-      while ( sline >> x ) {
-         if ( x != 0.0 ) {
+      while ( sline >> x )
+      {
+         if ( x != 0.0 )
+         {
 //            cout << "adding link: " << n_target << " <-- " << n_source << endl;
-            add_link ( g , _node(n_target) <= _node(n_source) ).weight =  x; }
-         ++n_source;
+            add_link( g , vtx(n_target) <= vtx(n_source) ).weight =  x; }
+            ++n_source;
          }
-      ++n_target; }}
+      ++n_target;
+   }
+}
 
 /*
    string line;
@@ -638,83 +609,114 @@ void read_adj_matrix( istream & is , Graph & g ) {
 //
 
 
-typedef  ode_network < node_sys , coupling >   sys;
-typedef  ode_network <lnode_sys ,lcoupling >  lsys;
+constexpr auto app_version = "0.7";
 
-sys   s;
-lsys  ls;
+struct Params
+{
+   double
+      cpl      = 0.5,   // coupling                   [0..max]
+      amp      = 1.0,   // amplitude/hopf parameter
+      w_0      = 2.5,
+      w_width  = 0.05,
+      dt       = 0.05;
+
+   int
+      N_samples = 10000,
+      node_num  = 5;  // number of nodes in network
+
+
+   bool    verbose_output = false;
+
+   std::string
+      adj_file = "",
+      frq_file = "",
+      file_name = "";
+};
+
+
+Params  parse_options(int arg_num , char** args);
 
 
 int main( int arg_num , char** arg )
 {
-   if ( verbose_output )
+   using namespace std;
+   using namespace boost::numeric::odeint;
+
+
+   using sys_t = ode_network< node_sys , coupling >;
+   using lsys_t = ode_network< lnode_sys, lcoupling >;
+
+   sys_t   sys;
+   lsys_t  ls;
+
+   auto p = parse_options( arg_num , arg );
+
+   if ( p.verbose_output )
    cout << "_________________________________________________" << endl
         << "network motif of coupled oscillators, Version " << app_version << endl << endl;
 
-   parse_options( arg_num , arg );
 
-   if ( adj_file != "" ) {
-//      cout << " reading adjacency matrix from file '" << adj_file << "'." << endl;
-      ifstream adj_stream( adj_file.c_str() );
-      read_adj_matrix( adj_stream , s );
+   if ( p.adj_file != "" ) {
+//      cout << " reading adjacency matrix from file '" << p.adj_file << "'." << endl;
+      ifstream adj_stream( p.adj_file.c_str() );
+      read_adj_matrix( adj_stream, sys );
       adj_stream.close();
 
-      if ( frq_file != "" ) {
-//         cout << " reading oscillator's frequencies from file '" << frq_file << "'." << endl;
-         ifstream frq_stream( frq_file.c_str() );
+      if ( p.frq_file != "" ) {
+//         cout << " reading oscillator's frequencies from file '" << p.frq_file << "'." << endl;
+         ifstream frq_stream( p.frq_file.c_str() );
          double f;
-         boost::graph_traits<sys>::vertex_iterator v1,v2;
-//         sys::vertex_iterator v1,v2;
-         tie(v1,v2) =  vertices(s);
+         boost::graph_traits<sys_t>::vertex_iterator v1,v2;
+//         sys_t::vertex_iterator v1,v2;
+         tie(v1,v2) =  vertices(sys);
          while ( (frq_stream >> f)  &&  (v1 != v2) )
-            s[*(v1++)].set_w( f );
+            sys[*(v1++)].set_w( f );
          frq_stream.close();
       }
 
-      node_num = num_vertices(s);
+      p.node_num = num_vertices(sys);
 
-/*
-      print_graph( s );
+
+      print_graph( sys );
       cout << "--------------------------" << endl;
       print_graph( ls );
       cout << "--------------------------" << endl;
-*/
+
    }
 
-   if ( verbose_output )
+
+   if ( p.verbose_output )
    cout
       << "running simulation with the following parameters:" << endl
       << "¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯"  << endl
-      << "  coupling strength:\t\t"     << cpl         << endl
-      << "  amplitude parameter:\t\t"   << amp         << endl
-      << "  freq parameter:\t\t"        << w_0         << endl
-      << "  freq dist parameter:\t\t"   << w_width     << endl
-      << "  number of nodes:\t\t"       << node_num    << endl
-      << "  adjacency matrix file:\t\t" << node_num    << endl
+      << "  coupling strength:\t\t"     << p.cpl         << endl
+      << "  amplitude parameter:\t\t"   << p.amp         << endl
+      << "  freq parameter:\t\t"        << p.w_0         << endl
+      << "  freq dist parameter:\t\t"   << p.w_width     << endl
+      << "  number of nodes:\t\t"       << p.node_num    << endl
+      << "  adjacency matrix file:\t\t" << p.node_num    << endl
 
-      << "  number of samples:\t\t"     << N_samples   << endl
-      << "  integrator time-step:\t\t"  << dt          << endl
-      << "  file name:\t\t\t"           << file_name   << endl
+      << "  number of samples:\t\t"     << p.N_samples   << endl
+      << "  integrator time-step:\t\t"  << p.dt          << endl
+      << "  file name:\t\t\t"           << p.file_name   << endl
       << endl;
 
    
    const int  node_dim  =  node_sys::dimension;
-   const int  net_dim   =  node_dim * node_num;
+   const int  net_dim   =  node_dim * p.node_num;
 
-//   sys          s( node_num );
-//  lsys         ls( node_num );
-   sys::state   x( node_num );
-   std::vector<lsys::state>  u(net_dim);
+   sys_t::state           x( p.node_num );
+   vector<lsys_t::state>  u(net_dim);
 
-   vector< double >  lyap ( net_dim , 0.0 );
+   vector<double>  lyap( net_dim , 0.0 );
 
-   runge_kutta4< sys::state >  stepper;
+   runge_kutta4< sys_t::state >  stepper;
 
 
    for ( int n=0 ; n < net_dim ; ++n )
-      u[n].resize( node_num );
+      u[n].resize( p.node_num );
 
-   for ( size_t n = 0  ;  n < node_num  ;  ++n )  {
+   for ( size_t n = 0  ;  n < p.node_num  ;  ++n )  {
       for ( int d=0 ; d < node_dim ; ++d )
          x[n][d]  =  rnd();
       for ( int m=0 ; m < net_dim ; ++m )
@@ -722,44 +724,41 @@ int main( int arg_num , char** arg )
             u[m][n][d]  =  ( node_dim*n+d == m ) ?  1.0 : 0.0 ;
    }
 
-   if ( !num_vertices(s) ) {
-      star( s );
-   //   twin_star( s );  twin_star( ls );
-   //   chain( s );      chain( ls );
+   if ( !num_vertices(sys) ) {
+      star(sys, p.node_num, p.w_0, p.w_width);
+   //   twin_star(sys, p.node_num);  twin_star(ls, p.node_num);
+   //   chain(sys, p.node_num);      chain(ls, p.node_num);
    }
 
-   copy_topology( s , ls );
+   copy_topology( sys , ls );
 
-
-   for ( int n = 0 ; n < node_num ; ++n ) {
+   for ( int n = 0 ; n < p.node_num ; ++n ) {
 //      double a = 1.0 + 0.05*rnd();
-      s[n].set_a( amp );
-     ls[n].set_a( amp );
+      sys[n].set_a( p.amp );
+      ls[n].set_a( p.amp );
    }
 
 
 // TODO   this could be solved with a global variable in the coupling function
-   for ( sys::edge_iterator  node  = edges(s).first;
-                             node != edges(s).second;
-         s[*node++].weight *= cpl );
+   for (auto e : edges(sys))  sys[e].weight *= p.cpl;
 
-   for ( lsys::edge_iterator  node  = edges(ls).first;
+   for ( lsys_t::edge_iterator  node  = edges(ls).first;
                               node != edges(ls).second;
-         ls[*node++].weight *= cpl );
+         ls[*node++].weight *= p.cpl );
 
 
-   if ( verbose_output )  print_graph( s );
+   if ( p.verbose_output )  print_graph( sys );
 
 
    ostream* pos = &cout;
 
-   if ( file_name != "" ) {
-      pos = new ofstream( file_name.c_str() );
-      if ( pos ) {  if ( verbose_output )
-         cout << "sending output to " << file_name << endl;
+   if ( p.file_name != "" ) {
+      pos = new ofstream( p.file_name.c_str() );
+      if ( pos ) {  if ( p.verbose_output )
+         cout << "sending output to " << p.file_name << endl;
       }
       else {
-         cerr << "Error: cannot open file " << file_name << ". Sending to standard out." << endl;
+         cerr << "Error: cannot open file " << p.file_name << ". Sending to standard out." << endl;
          pos = &cout;
       }
    }
@@ -769,7 +768,7 @@ int main( int arg_num , char** arg )
 
    for ( int realization = 0 ; realization < N_realization ; ++realization ) {
 
-      for ( size_t n = 0  ;  n < node_num  ;  ++n )  {
+      for ( size_t n = 0  ;  n < p.node_num  ;  ++n )  {
          for ( int d=0 ; d < node_dim ; ++d )
             x[n][d]  =  rnd();
          for ( int m=0 ; m < net_dim ; ++m )
@@ -780,30 +779,30 @@ int main( int arg_num , char** arg )
 
 //      int  N_steps_before_renormalization  =  int( 1. / dt );
       int  N_steps_before_renormalization  =  10;
-      for ( size_t k = 0 ; k < N_samples ; ++k ) {
+      for ( size_t k = 0 ; k < p.N_samples ; ++k ) {
 
-         stepper.do_step( s , x , 0.0 , dt );     // integrate the system
+         stepper.do_step( sys , x , 0.0 , p.dt );     // integrate the system
 
-//         for ( int n=0 ; n < node_num ; ++n )
+//         for ( int n=0 ; n < p.node_num ; ++n )
 //            x[n][0]  =  fmod( x[n][0] , 2.*pi );    // post process phase to ensure num. stability
 
 #        ifdef    __COMPUTE_LYAPUNOV_SPECTRUM__
 
-            for ( int n=0 ; n < node_num ; ++n )
+            for ( int n=0 ; n < p.node_num ; ++n )
                for ( int d=0; d < node_dim ; ++d )
                   ls[n].set( d , x[n][d] );
 
             for ( int n=0 ; n < net_dim ; ++n )
-               stepper.do_step( ls , u[n] , 0.0 , dt );    // integrate the linearized system
+               stepper.do_step( ls , u[n] , 0.0 , p.dt );    // integrate the linearized system
 
             if ( !N_steps_before_renormalization-- ) {
-               gram_schmidt ( u , lyap );
+               gram_schmidt( u , lyap );
                N_steps_before_renormalization  =  10;
             }
 
 #        else
 
-           for ( size_t n=0 ; n < node_num ; ++n )
+           for ( size_t n=0 ; n < p.node_num ; ++n )
               for ( int d=0 ; d < node_dim ; ++d )
                  *pos << x[n][d] << "\t";
            *pos << endl;
@@ -815,7 +814,7 @@ int main( int arg_num , char** arg )
 
 #  ifdef    __COMPUTE_LYAPUNOV_SPECTRUM__
       for ( size_t n=0 ; n < net_dim ; ++n )
-         *pos << lyap[n] / (dt*N_samples*N_realization) << endl;
+         *pos << lyap[n] / (p.dt * p.N_samples * N_realization) << endl;
 #  endif
 
 }
@@ -831,50 +830,56 @@ int main( int arg_num , char** arg )
 
 
 
-void parse_options( int arg_num , char** arg )
+Params parse_options( int arg_num , char** arg )
 {
+  using namespace std;
+  using namespace TCLAP;
+
+  Params p;
+
   try {
     CmdLine cmd( "cmd_message" , ' ' , app_version );
+
 
     //
     // Define arguments
     //
 
-    ValueArg<double>  arg_cpl( "c" , "coupling" , "coupling strength" , false , cpl , "double" );
+    ValueArg<double>  arg_cpl( "c" , "coupling" , "coupling strength" , false , p.cpl , "double" );
     cmd.add( arg_cpl );
 
 
-    ValueArg<double>  arg_a( "a" , "amplitude" , "amplitude parameter" , false , amp , "double" );
+    ValueArg<double>  arg_a( "a" , "amplitude" , "amplitude parameter" , false , p.amp , "double" );
     cmd.add( arg_a );
 
-    ValueArg<double>  arg_w( "w" , "freq" , "frequency of detuned node" , false , w_0 , "double" );
+    ValueArg<double>  arg_w( "w" , "freq" , "frequency of detuned node" , false , p.w_0 , "double" );
     cmd.add( arg_w );
 
-    ValueArg<double>  arg_d( "d" , "freq_dist" , "frequency distribution of bulk nodes" , false , w_width , "double" );
+    ValueArg<double>  arg_d( "d" , "freq_dist" , "frequency distribution of bulk nodes" , false , p.w_width , "double" );
     cmd.add( arg_d );
 
-    ValueArg<int>  arg_node_num( "n" , "nodenum" , "number of nodes" , false , node_num , "int" );
+    ValueArg<int>  arg_node_num( "n" , "nodenum" , "number of nodes" , false , p.node_num , "int" );
     cmd.add( arg_node_num );
 
     ValueArg<string>  arg_adj_file_name(
-               "A", "adjacency" , "filename with an adjacency matrix" , false , adj_file , "file name" );
+               "A", "adjacency" , "filename with an adjacency matrix" , false , p.adj_file , "file name" );
     cmd.add( arg_adj_file_name );
 
     ValueArg<string>  arg_frq_file_name(
-               "F", "frequencies" , "filename with an frequencies" , false , frq_file , "file name" );
+               "F", "frequencies" , "filename with an frequencies" , false , p.frq_file , "file name" );
     cmd.add( arg_frq_file_name );
 
 
 
-    ValueArg<int>  arg_smp_num( "N" , "smpnum" , "number of samples of generated output" , false , N_samples , "int" );
+    ValueArg<int>  arg_smp_num( "N" , "smpnum" , "number of samples of generated output" , false , p.N_samples , "int" );
     cmd.add( arg_smp_num );
 
-    ValueArg<double>  arg_dt( "t" , "dt" , "integrator time step" , false , dt , "double" );
+    ValueArg<double>  arg_dt( "t" , "dt" , "integrator time step" , false , p.dt , "double" );
     cmd.add( arg_dt );
 
 
 
-    UnlabeledValueArg<string>  arg_file_name( "filename" , "name for file to write the output in" , false , file_name , "file name" );
+    UnlabeledValueArg<string>  arg_file_name( "filename" , "name for file to write the output in" , false , p.file_name , "file name" );
     cmd.add( arg_file_name );
 
     SwitchArg  arg_verbose ( "v" , "verbose" , "verbose output" , false );
@@ -886,28 +891,29 @@ void parse_options( int arg_num , char** arg )
     //
     cmd.parse( arg_num , arg );
 
-
     //
     // get the values
     //
-    cpl      = arg_cpl.getValue();
-    amp      = arg_a.getValue();
-    w_0      = arg_w.getValue();
-    w_width  = arg_d.getValue();
-    node_num = arg_node_num.getValue();
-    adj_file = arg_adj_file_name.getValue();
-    frq_file = arg_frq_file_name.getValue();
+    p.cpl      = arg_cpl.getValue();
+    p.amp      = arg_a.getValue();
+    p.w_0      = arg_w.getValue();
+    p.w_width  = arg_d.getValue();
+    p.node_num = arg_node_num.getValue();
+    p.adj_file = arg_adj_file_name.getValue();
+    p.frq_file = arg_frq_file_name.getValue();
 
-    N_samples = arg_smp_num.getValue();
-    dt        = arg_dt.getValue();
-    file_name = arg_file_name.getValue();
+    p.N_samples = arg_smp_num.getValue();
+    p.dt        = arg_dt.getValue();
+    p.file_name = arg_file_name.getValue();
 
-    if ( arg_verbose.isSet() )  verbose_output = true;
+    if ( arg_verbose.isSet() )  p.verbose_output = true;
   }
 
   catch ( ArgException& e ) {
     cout << "ERROR: " << e.error() << " " << e.argId() << endl;
   }
+
+  return p;
 }
 
 
