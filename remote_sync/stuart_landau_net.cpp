@@ -698,13 +698,13 @@ int main( int arg_num , char** arg )
       << endl;
 
    
-   static const int  node_dim  =  node_sys::dimension;
-   static const int  net_dim   =  node_dim * node_num;
+   const int  node_dim  =  node_sys::dimension;
+   const int  net_dim   =  node_dim * node_num;
 
 //   sys          s( node_num );
 //  lsys         ls( node_num );
    sys::state   x( node_num );
-  lsys::state   u[ net_dim ];
+   std::vector<lsys::state>  u(net_dim);
 
    vector< double >  lyap ( net_dim , 0.0 );
 
