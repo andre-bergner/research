@@ -18,23 +18,26 @@ endif()
 
 
 find_program(PYTHON3 python3 PATHS ENV PATH)
-find_program(PYTHON2 python2 PATHS ENV PATH)
-
-
-if (NOT PYTHON3)
-   message (FATAL_ERROR "python3 not found!")
+if (PYTHON3)
+   message ("Using python3.")
+   set(PYTHON ${PYTHON3})
 endif()
 
-if (NOT PYTHON2)
-   message (FATAL_ERROR "python2 not found!")
+if (NOT PYTHON)
+   find_program(PYTHON2 python2 PATHS ENV PATH)
+   if (PYTHON2)
+      message ("Using python2.")
+      set(PYTHON ${PYTHON2})
+   endif()
 endif()
 
-#add_custom_target( run
-#   COMMAND ${PYTHON4_PATH} -c 'print(123)'
-#   WORKING_DIRECTORY ${CMAKE_PROJECT_DIR}
-#)
 
-#add_custom_target( run
-#   COMMAND ${PYTHON3_PATH} ${CMAKE_SOURCE_DIR}/cov/live_cover.py $<TARGET_FILE:${PROJECT_NAME}> ${PROJECT_SOURCE_DIR} ${PROJECT_BINARY_DIR}
-#   WORKING_DIRECTORY ${CMAKE_PROJECT_DIR}
-#)
+if (NOT PYTHON)
+   message (FATAL_ERROR "No python found! Searched for python2 and python3.")
+endif()
+
+
+add_custom_target( run
+   COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/sync_study.py
+   WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+)
