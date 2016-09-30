@@ -22,6 +22,12 @@ namespace rng
       return std::fill( std::begin(r), std::end(r), std::forward<Value>(v) );
    }
 
+   template <typename Range, typename Function>
+   auto for_each( Range&& r, Function&& f )
+   {
+      return std::for_each( std::begin(r), std::end(r), std::forward<Function>(f) );
+   }
+
    template <typename Range1, typename Range2, typename Range3, typename Func>
    auto transform( Range1 const& r1, Range2 const& r2, Range3& r3, Func&& f )
    {
@@ -36,3 +42,28 @@ namespace rng
    }
 */
 }
+
+
+
+namespace stat
+{
+
+   template <typename Value>
+   class Averager
+   {
+      Value        value_ = {};
+      std::size_t  count_ = {};
+   public:
+      decltype(auto) operator()(Value&& x)
+      {
+         value_ += x;
+         ++count_;
+         return std::forward<Value>(x);
+      }
+
+      Value get() const { return value_ / static_cast<Value>(count_); }
+   };
+
+}
+
+

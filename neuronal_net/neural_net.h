@@ -55,20 +55,9 @@ class NeuralNetwork
    auto dfunc(T const& x) const { return func(x) * (T{1}-func(x)); };
 
 
-   template <typename Range1, typename Range2>
-   auto cost(Range1 const& v, Range2 const& y)
-   {
-      auto sqr = [](auto const& x){ return x*x; };
-      using value_t = std::decay_t<decltype(v[0])>;
-      value_t sum = {};
-      for ( size_t n=0 ; n < v.size() ; ++n )
-         sum += sqr(v[n]-y[n]);
-      return sum / value_t(2*v.size());
-      //return  rng::fold([](auto const& a, auto const& b) { } );
-   };
 
    template <typename T>
-   auto nabla_cost(T const& v, T const& y) { return  v - y; };
+   auto nabla_cost(T const& v, T const& y) const  { return  v - y; };
 
 
    template <typename F>
@@ -116,11 +105,6 @@ public:
          rng::fill( l.weights, 0.f );
          rng::fill( l.biases, 0.f );
       }
-
-      //layers_[0].weights(0,0) =  5.36f;
-      //layers_[0].biases[0]    = -3.17f;
-      //layers_[1].weights(0,0) = -7.38f;
-      //layers_[1].biases[0]    =  3.62f;
    }
 
    cspan_t operator()( cvec_t input ) const
@@ -138,6 +122,19 @@ public:
       }
       return {in->data(),layers_.back().out_size() };
    }
+
+
+   template <typename Range1, typename Range2>
+   auto cost(Range1 const& v, Range2 const& y) const
+   {
+      auto sqr = [](auto const& x){ return x*x; };
+      using value_t = std::decay_t<decltype(v[0])>;
+      value_t sum = {};
+      for ( size_t n=0 ; n < v.size() ; ++n )
+         sum += sqr(v[n]-y[n]);
+      return sum / value_t(2*v.size());
+   };
+
 
    //template <typename F>
    decltype(auto) back_propagate( cvec_t x, cvec_t y)//, F&& update_coeff )
@@ -165,40 +162,6 @@ public:
 
       // 2. feed backward -- back propagation
 
-#if 0
-
-      vec_t error(in.size());
-      for ( int n=0; n < in.size(); ++n )
-         error[n] = nabla_cost(in[n],y[n]) * dfunc(webs.back().out[n]);
-
-      // ------ TODO apply visitor to coefficients as being computed ---------------------
-
-      std::vector<Layer>  dlayers(layers_.size());
-      auto it_dl = dlayers.rbegin();
-
-      Layer l;
-      l.weights = outer(webs.back().in,error);
-      l.biases = error;
-      *it_dl++ = std::move(l);
-
-      webs.pop_back();
-
-      auto it_w = layers_.rbegin();
-      for (; !webs.empty(); ++it_w, ++it_dl, webs.pop_back() )
-      {
-         error = dott(it_w->weights,error);
-
-         for (size_t n=0; n<error.size(); ++n)
-            error[n] *= dfunc(webs.back().out[n]);
-
-         Layer l;
-         l.weights = outer(webs.back().in,error);
-         l.biases = error;
-         *it_dl = std::move(l);
-      }
-
-#else
-
       auto& dlayers = dlayers_;
       auto it_dl = dlayers.rbegin();
       auto& error = it_dl->biases;
@@ -223,19 +186,6 @@ public:
          outer(webs.back().in,error,it_dl->weights);
       }
 
-#endif
-/*
-      {
-         auto it = dlayers.begin();
-         for ( auto const& l : layers_ )
-         {
-            assert( l.biases.size() == it->biases.size() );
-            assert( l.weights.row_size() == it->weights.row_size() );
-            assert( l.weights.col_size() == it->weights.col_size() );
-            ++it;
-         }
-      }
-*/
       return dlayers;
    }
 
@@ -279,18 +229,6 @@ public:
                   , [norm](auto const& x, auto const& dx){ return x - dx * norm; });
          ++it_l;
       }
-   }
-
-
-
-   float current_cost( std::vector<std::pair<vec_t,vec_t>> const& pairs, float eta = 0.1f )
-   {
-      float avg_cost = 0.f;
-      for (auto const& p : pairs)
-      {
-         avg_cost = cost( (*this)(p.first), p.second );
-      }
-      return avg_cost / float(pairs.size());
    }
 
 };

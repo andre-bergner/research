@@ -1,5 +1,7 @@
 #include <iostream>
+
 #include "neural_net.h"
+#include <fstream>
 
 template <typename T>
 std::ostream& operator<<( std::ostream& os, std::vector<T> const& vec )
@@ -15,13 +17,14 @@ std::ostream& operator<<( std::ostream& os, Span<T> const& vec )
    return os;
 }
 
+
 int main()
 {
    using namespace std;
 
    using vec_t = vector<float>;
    vector<pair<vec_t,vec_t>> training_data;
-   mt19937  gen;//(random_device{}());
+   mt19937  gen(random_device{}());
    normal_distribution<float>  norm_dist(0.f,0.01f);
    auto rnd = [&]{ return norm_dist(gen); };
 
@@ -36,21 +39,33 @@ int main()
 
    NeuralNetwork  net({4,3,2});
 
+
    std::cout << "learning..." << std::endl;
+
+   auto print_cost = [s = std::ofstream("cost.txt"), &net, &training_data]() mutable
+   {
+      stat::Averager<float> avg_cost;
+      for (auto const& p : training_data) avg_cost(net.cost( net(p.first), p.second ));
+      s << avg_cost.get() << std::endl;
+   };
+
    for (size_t n=0; n<1500; ++n)
    {
       net.step_gradien_descent( training_data, 1.f );
-      std::cout << net.current_cost(training_data) << std::endl;
+      print_cost();
    }
    for (size_t n=0; n<1000; ++n)
+   {
       net.step_gradien_descent( training_data, .5f );
+      print_cost();
+   }
 
-   std::cout << "-----" << std::endl;
-
+   std::cout << "--- some predictions ---" << std::endl;
 
    std::cout << net({1.f, 1.f, 0.f, 0.f}) << std::endl;
    std::cout << net({1.f, 0.f, 1.f, 0.f}) << std::endl;
    std::cout << net({1.f, 0.f, 1.f, 1.f}) << std::endl;
    std::cout << net({0.f, 1.f, 1.f, 0.f}) << std::endl;
+
 }
 
