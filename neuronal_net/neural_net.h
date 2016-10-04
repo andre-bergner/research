@@ -4,6 +4,7 @@
 #include <initializer_list>
 #include <random>
 #include <cmath>
+#include <functional>
 
 
 // TODO
@@ -36,6 +37,9 @@ class NeuralNetwork
 
       size_t in_size() const  { return weights.col_size(); }
       size_t out_size() const { return weights.row_size(); }
+
+      std::function<void(span_t)>  activation;
+      std::function<void(cspan_t,span_t)>  multiply_nabla_activation;
    };
 
    std::vector<Layer>  layers_;
@@ -66,7 +70,7 @@ class NeuralNetwork
       rng::copy( l.biases, out.begin() );
       dot_add( l.weights, in, out );
       visit_node_input(out);
-      for ( auto& x : out ) x = func(x);
+      l.activation(out);
    }
 
    void feed_layer( Layer const& l, cvec_t in, rvec_t out ) const
@@ -95,6 +99,11 @@ public:
          Layer l(in_size,*s);
          rng::generate(l.weights, rnd);
          rng::generate(l.biases, rnd);
+         l.activation = [this](span_t xs){ for (auto& x : xs) x = func(x); };
+         l.multiply_nabla_activation = [this](cspan_t xs, span_t ys){
+            for (size_t n=0; n<ys.size(); ++n)
+               ys[n] *= dfunc(xs[n]);
+         };
          layers_.push_back(std::move(l));
       }
 
@@ -166,7 +175,8 @@ public:
       auto it_dl = dlayers.rbegin();
       auto& error = it_dl->biases;
       for ( int n=0; n < in.size(); ++n )
-         error[n] = nabla_cost(in[n],y[n]) * dfunc(webs.back().out[n]);
+         error[n] = nabla_cost(in[n],y[n]);
+      it_dl->multiply_nabla_activation(webs.back().out,error);
       outer(webs.back().in,error,it_dl->weights);
       ++it_dl;
 
@@ -180,8 +190,7 @@ public:
          dott(it_w->weights, *error_pre, error);
          error_pre = &error;
 
-         for (size_t n=0; n<error.size(); ++n)
-            error[n] *= dfunc(webs.back().out[n]);
+         it_dl->multiply_nabla_activation(webs.back().out,error);
 
          outer(webs.back().in,error,it_dl->weights);
       }

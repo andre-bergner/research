@@ -54,6 +54,10 @@ public:
 
    Span( Value* d, std::size_t s ) : data_{d} , size_{s} {}
 
+   Span( std::vector<Value>& v ) : data_{v.data()} , size_{v.size()} {}
+
+   Span( std::vector<std::decay_t<Value>> const& v ) : data_{v.data()} , size_{v.size()} {}
+
    Value* data() const  { return data_; }
    Value* begin() const { return data_; }
    Value* end() const   { return data_ + size_; }
