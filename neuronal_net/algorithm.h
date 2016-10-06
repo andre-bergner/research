@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <numeric>
 
 
 namespace rng
@@ -32,6 +33,18 @@ namespace rng
    auto transform( Range1 const& r1, Range2 const& r2, Range3& r3, Func&& f )
    {
       return std::transform( std::begin(r1), std::end(r1), std::begin(r2), std::begin(r3), std::forward<Func>(f) );
+   }
+
+   template <typename Range, typename Number>
+   auto iota( Range& r, Number&& init )
+   {
+      return std::iota( std::begin(r), std::end(r), std::forward<Number>(init) );
+   }
+
+   template <typename Range, typename Func>
+   auto shuffle( Range& r, Func&& f )
+   {
+      return std::shuffle( std::begin(r), std::end(r), std::forward<Func>(f) );
    }
 
 /*

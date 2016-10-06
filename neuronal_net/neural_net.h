@@ -1,6 +1,9 @@
 #include "matrix.h"
 #include "algorithm.h"
 
+#include <boost/iterator/permutation_iterator.hpp>
+#include <boost/range/iterator_range.hpp>
+
 #include <initializer_list>
 #include <random>
 #include <cmath>
@@ -199,7 +202,8 @@ public:
    }
 
 
-   void step_gradien_descent( std::vector<std::pair<vec_t,vec_t>> const& pairs, float eta = 0.1f )
+   template <typename TrainingPairs>
+   void step_gradient_descent( TrainingPairs const& pairs, float eta = 0.1f )
    {
       using namespace std;
 
@@ -241,3 +245,40 @@ public:
    }
 
 };
+
+
+
+struct sgd_params
+{
+   size_t n_epochs        = 100;
+   size_t mini_batch_size = 20;
+   float  eta             = 0.1f;
+   std::function<void(size_t)>  progress = [](size_t){};
+};
+
+template <typename TrainingPairs>
+void stochastic_gradien_descent( NeuralNetwork& net, TrainingPairs const& pairs, sgd_params p = {} )
+{
+   using namespace std;
+   mt19937  gen(random_device{}());
+   uniform_int_distribution<size_t>  uni_dist( 0, pairs.size() );
+   auto rnd_idx = [&]{ return uni_dist(gen); };
+
+   for (size_t n=0; n<p.n_epochs; ++n)
+   {
+      auto n_batches = pairs.size() / p.mini_batch_size;
+      for (size_t k=0; k<n_batches; ++k)
+      {
+         std::vector<size_t> indices(p.mini_batch_size);
+         rng::iota(indices,0);
+         rng::shuffle(indices,gen);
+
+         auto it = boost::make_permutation_iterator(pairs.begin(), indices.begin());
+         auto jt = boost::make_permutation_iterator(pairs.begin(), indices.end());
+
+         net.step_gradient_descent( boost::make_iterator_range(it,jt), p.eta );
+      }
+      p.progress(n);
+   }
+}
+

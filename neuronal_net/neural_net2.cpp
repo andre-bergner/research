@@ -49,16 +49,7 @@ int main()
       s << avg_cost.get() << std::endl;
    };
 
-   for (size_t n=0; n<1500; ++n)
-   {
-      net.step_gradien_descent( training_data, 1.f );
-      print_cost();
-   }
-   for (size_t n=0; n<1000; ++n)
-   {
-      net.step_gradien_descent( training_data, .5f );
-      print_cost();
-   }
+   stochastic_gradien_descent(net, training_data, {200,10,0.5,[&](auto){print_cost();}});
 
    std::cout << "--- some predictions ---" << std::endl;
 
