@@ -18,13 +18,17 @@
 
 class NeuralNetwork
 {
-   using vec_t  = std::vector<float>;
+   using value_t = float;
+
+   using vec_t  = std::vector<value_t>;
    using cvec_t = vec_t const&;
    using rvec_t = vec_t&;
 
-   using mat_t = matrix<float>;
-   using span_t = Span<float>;
-   using cspan_t = Span<float const>;
+   using mat_t = matrix<value_t>;
+   using span_t = Span<value_t>;
+   using cspan_t = Span<value_t const>;
+
+   using init_t = std::initializer_list<value_t>;
 
    struct Layer {
 
@@ -45,7 +49,7 @@ class NeuralNetwork
       std::function<void(cspan_t,span_t)>  multiply_nabla_activation;
    };
 
-   std::vector<Layer>  layers_;
+   std::vector<Layer>  layers_;        // name: baklava
 
    mutable vec_t  temp1_, temp2_;
 
@@ -68,7 +72,7 @@ class NeuralNetwork
 
 
    template <typename F>
-   void feed_layer( Layer const& l, cvec_t in, rvec_t out, F&& visit_node_input ) const
+   void feed_layer( Layer const& l, cspan_t in, span_t out, F&& visit_node_input ) const
    {
       rng::copy( l.biases, out.begin() );
       dot_add( l.weights, in, out );
@@ -76,7 +80,7 @@ class NeuralNetwork
       l.activation(out);
    }
 
-   void feed_layer( Layer const& l, cvec_t in, rvec_t out ) const
+   void feed_layer( Layer const& l, cspan_t in, span_t out ) const
    {
       feed_layer(l,in,out,[](auto&){});
    }
@@ -89,8 +93,8 @@ public:
    ,  temp2_ ( temp1_.size() )
    {
       using namespace std;
-      mt19937  gen;//(random_device{}());
-      normal_distribution<float>  norm_dist;
+      mt19937  gen(random_device{}());
+      normal_distribution<value_t>  norm_dist;
       auto rnd = [&]{ return norm_dist(gen); };
 
       // transform( layer_sizes | windowed(2,1), back_inserter(layers_), construct<Layer>{} )
@@ -119,20 +123,26 @@ public:
       }
    }
 
-   cspan_t operator()( cvec_t input ) const
+   cspan_t operator()( cspan_t input ) const
    {
-      auto* in   = &input;
-      auto* out  = &temp1_;
-      auto* temp = &temp2_;
+      cspan_t in   = input;
+      span_t  out  = temp1_;
+      span_t  temp = temp2_;
 
       // activation(wu+b)
       for ( auto const& l : layers_ )
       {
-         feed_layer(l, *in, *out);
+         feed_layer(l, in, out);
          in = out;
          std::swap(out,temp);
       }
-      return {in->data(),layers_.back().out_size() };
+      return {in.data(),layers_.back().out_size() };
+   }
+
+   cspan_t operator()( init_t input ) const
+   {
+      vec_t v(input);
+      return (*this)(v);
    }
 
 
@@ -148,12 +158,12 @@ public:
    };
 
 
-   //template <typename F>
-   decltype(auto) back_propagate( cvec_t x, cvec_t y)//, F&& update_coeff )
+   //template <typename Visitor>
+   decltype(auto) back_propagate( cspan_t x, cspan_t expected )//, Visitor&& update_coeff )
    {
       // 1. feed forward and store all node input and outputs
 
-      struct web_in_out {
+      struct web_in_out {   // better name: axons? axon_web? tissue!
          vec_t  in;         // output of prev layer, i.e. post neuron
          vec_t  out;        // input to next layer, i.e. pre neuron
       };
@@ -161,24 +171,27 @@ public:
       std::vector<web_in_out>  webs;
       webs.reserve(layers_.size());
 
-      vec_t in = x;
+      vec_t in(x.size());
+      rng::copy(x,in.begin());
 
       for ( auto const& l : layers_ )
       {
          web_in_out w{ std::move(in), .out = vec_t(l.out_size()) };
          in = vec_t(l.out_size());
-         feed_layer( l, w.in, in, [&](auto& v){ w.out = v; });
+         feed_layer( l, w.in, in, [&](auto& v){ rng::copy(v,w.out.begin()); });
          webs.push_back(std::move(w));
       }
 
 
       // 2. feed backward -- back propagation
 
+      // TODO introduce pop_back_iterator for web
+
       auto& dlayers = dlayers_;
       auto it_dl = dlayers.rbegin();
       auto& error = it_dl->biases;
       for ( int n=0; n < in.size(); ++n )
-         error[n] = nabla_cost(in[n],y[n]);
+         error[n] = nabla_cost(in[n], expected[n]);
       it_dl->multiply_nabla_activation(webs.back().out,error);
       outer(webs.back().in,error,it_dl->weights);
       ++it_dl;
@@ -201,9 +214,16 @@ public:
       return dlayers;
    }
 
+   decltype(auto) back_propagate( init_t x, init_t expected )
+   {
+      vec_t x_{x};
+      vec_t e_{expected};
+      return back_propagate(x_,e_);
+   }
+
 
    template <typename TrainingPairs>
-   void step_gradient_descent( TrainingPairs const& pairs, float eta = 0.1f )
+   void step_gradient_descent( TrainingPairs const& pairs, value_t eta = 0.1f )
    {
       using namespace std;
 
@@ -233,7 +253,7 @@ public:
 
       // apply average gradient on coefficients
       auto it_l = layers_.begin();
-      auto norm = eta / float(pairs.size());
+      auto norm = eta / value_t(pairs.size());
       for (auto const& d : deltas_sum)     // TODO use zip:  for(auto z:zip(layers_,deltas_sum)) z[_1] -= 
       {
          transform( begin(it_l->weights), end(it_l->weights), begin(d.weights), begin(it_l->weights)

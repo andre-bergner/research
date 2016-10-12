@@ -29,6 +29,12 @@ namespace rng
       return std::for_each( std::begin(r), std::end(r), std::forward<Function>(f) );
    }
 
+   template <typename Range1, typename Range2, typename Func>
+   auto transform( Range1 const& r1, Range2& r2, Func&& f )
+   {
+      return std::transform( std::begin(r1), std::end(r1), std::begin(r2), std::forward<Func>(f) );
+   }
+
    template <typename Range1, typename Range2, typename Range3, typename Func>
    auto transform( Range1 const& r1, Range2 const& r2, Range3& r3, Func&& f )
    {

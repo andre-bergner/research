@@ -1,4 +1,5 @@
 #include <vector>
+#include <array>
 #include <cassert>
 
 
@@ -55,8 +56,20 @@ public:
    Span( Value* d, std::size_t s ) : data_{d} , size_{s} {}
 
    Span( std::vector<Value>& v ) : data_{v.data()} , size_{v.size()} {}
-
    Span( std::vector<std::decay_t<Value>> const& v ) : data_{v.data()} , size_{v.size()} {}
+
+   template <size_t N>
+   Span( std::array<Value,N>& v ) : data_{v.data()} , size_{v.size()} {}
+   template <size_t N>
+   Span( std::array<std::decay_t<Value>,N> const& v ) : data_{v.data()} , size_{v.size()} {}
+
+
+   //Span( Span const& ) = default;
+   //Span( Span<std::remove_const_t<Value>> const& s ) : data_{s.data()} , size_{s.size()} {}
+
+   Span( Span<std::remove_const_t<Value>> const& s ) : data_{s.data()} , size_{s.size()} {}
+
+
 
    Value* data() const  { return data_; }
    Value* begin() const { return data_; }
@@ -77,8 +90,8 @@ void add( Vector1 const& u, Vector2 const& v, Vector3& w )
 }
 
 
-template <typename Matrix, typename Vector>
-void dot_add( Matrix const& m, Vector const& a, Vector& b )
+template <typename Matrix, typename Vector1, typename Vector2>
+void dot_add( Matrix const& m, Vector1 const& a, Vector2& b )
 {
    for ( size_t l = 0 ; l < m.col_size() ; ++l )
       for ( size_t k = 0 ; k < m.row_size() ; ++k )
@@ -86,8 +99,8 @@ void dot_add( Matrix const& m, Vector const& a, Vector& b )
 }
 
 
-template <typename Matrix, typename Vector>
-void dot( Matrix const& m, Vector const& a, Vector& b )
+template <typename Matrix, typename Vector1, typename Vector2>
+void dot( Matrix const& m, Vector1 const& a, Vector2& b )
 {
    for ( size_t k = 0 ; k < m.row_size() ; ++k ) b[k] = 0.f;
    dot_add(m,a,b);
@@ -95,8 +108,8 @@ void dot( Matrix const& m, Vector const& a, Vector& b )
 
 
 
-template <typename Matrix, typename Vector>
-void dott_add( Matrix const& m, Vector const& a, Vector& b )
+template <typename Matrix, typename Vector1, typename Vector2>
+void dott_add( Matrix const& m, Vector1 const& a, Vector2& b )
 {
    for ( size_t k = 0 ; k < m.row_size() ; ++k )
       for ( size_t l = 0 ; l < m.col_size() ; ++l )
@@ -104,8 +117,8 @@ void dott_add( Matrix const& m, Vector const& a, Vector& b )
 }
 
 
-template <typename Matrix, typename Vector>
-void dott( Matrix const& m, Vector const& a, Vector& b )
+template <typename Matrix, typename Vector1, typename Vector2>
+void dott( Matrix const& m, Vector1 const& a, Vector2& b )
 {
    for ( size_t k = 0 ; k < m.row_size() ; ++k ) b[k] = 0.f;
    dott_add(m,a,b);

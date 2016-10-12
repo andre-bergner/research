@@ -27,13 +27,13 @@ int main()
 
    //-------------------------------------------------------------------------
 
-   NeuralNetwork  net({1,1,2,1});
+   NeuralNetwork  net({1,1,1});
 
    std::cout << "learning..." << std::endl;
    for (size_t n=0; n<1500; ++n)
-      net.step_gradien_descent( training_data, 10.f );
+      net.step_gradient_descent( training_data, 10.f );
    for (size_t n=0; n<1000; ++n)
-      net.step_gradien_descent( training_data, .5f );
+      net.step_gradient_descent( training_data, .5f );
 
    //training_data.clear();
    //training_data.push_back({{0.f},{1.f}});
