@@ -53,7 +53,7 @@ class NeuralNetwork
 
    mutable vec_t  temp1_, temp2_;
 
-   std::vector<Layer>  dlayers_;
+   mutable std::vector<Layer>  dlayers_;
    std::vector<Layer>  deltas_sum_;
 
 
@@ -96,6 +96,7 @@ public:
       mt19937  gen(random_device{}());
       normal_distribution<value_t>  norm_dist;
       auto rnd = [&]{ return norm_dist(gen); };
+      //auto rnd = [x=std::complex<float>{1.f,0.f},y=std::polar(1.f,0.2f)]() mutable { return std::real(x*=y); };
 
       // transform( layer_sizes | windowed(2,1), back_inserter(layers_), construct<Layer>{} )
 
@@ -108,6 +109,7 @@ public:
          rng::generate(l.biases, rnd);
          l.activation = [this](span_t xs){ for (auto& x : xs) x = func(x); };
          l.multiply_nabla_activation = [this](cspan_t xs, span_t ys){
+            assert( xs.size() == xs.size() );
             for (size_t n=0; n<ys.size(); ++n)
                ys[n] *= dfunc(xs[n]);
          };
@@ -159,8 +161,11 @@ public:
 
 
    //template <typename Visitor>
-   decltype(auto) back_propagate( cspan_t x, cspan_t expected )//, Visitor&& update_coeff )
+   decltype(auto) back_propagate( cspan_t x, cspan_t expected ) const//, Visitor&& update_coeff )
    {
+      assert( x.size()        == layers_.front().in_size() );
+      assert( expected.size() == layers_.back().out_size() );
+
       // 1. feed forward and store all node input and outputs
 
       struct web_in_out {   // better name: axons? axon_web? tissue!
@@ -188,12 +193,17 @@ public:
       // TODO introduce pop_back_iterator for web
 
       auto& dlayers = dlayers_;
+      for (auto& l : dlayers) {
+         rng::fill( l.weights, 0.f );
+         rng::fill( l.biases, 0.f );
+      }
+
       auto it_dl = dlayers.rbegin();
       auto& error = it_dl->biases;
       for ( int n=0; n < in.size(); ++n )
          error[n] = nabla_cost(in[n], expected[n]);
       it_dl->multiply_nabla_activation(webs.back().out,error);
-      outer(webs.back().in,error,it_dl->weights);
+      outer( error, webs.back().in, it_dl->weights );
       ++it_dl;
 
       webs.pop_back();
@@ -208,7 +218,7 @@ public:
 
          it_dl->multiply_nabla_activation(webs.back().out,error);
 
-         outer(webs.back().in,error,it_dl->weights);
+         outer( error, webs.back().in, it_dl->weights );
       }
 
       return dlayers;
@@ -235,13 +245,14 @@ public:
 
       auto add_vec = [](auto& v1, auto const& v2)
       {
+         assert( v1.size() == v2.size() );
          transform( begin(v1), end(v1), begin(v2), begin(v1), std::plus<>{} );
       };
 
       // compute gradient for all training pairs
       for (auto const& p : pairs)
       {
-         auto deltas = back_propagate(p.first, p.second);
+         auto&& deltas = back_propagate(p.first, p.second);
          auto it_ds = deltas_sum.begin();
          for (auto const& d : deltas)     // TODO use zip
          {
@@ -281,22 +292,21 @@ void stochastic_gradien_descent( NeuralNetwork& net, TrainingPairs const& pairs,
 {
    using namespace std;
    mt19937  gen(random_device{}());
-   uniform_int_distribution<size_t>  uni_dist( 0, pairs.size() );
-   auto rnd_idx = [&]{ return uni_dist(gen); };
+
+   auto n_batches = pairs.size() / p.mini_batch_size;// + (pairs.size()%p.mini_batch_size)?1:0;
 
    for (size_t n=0; n<p.n_epochs; ++n)
    {
-      auto n_batches = pairs.size() / p.mini_batch_size;
+      vector<size_t> indices(pairs.size());
+      rng::iota(indices,0);
+      rng::shuffle(indices,gen);
+
+      auto it = boost::make_permutation_iterator(pairs.begin(), indices.begin());
+
       for (size_t k=0; k<n_batches; ++k)
       {
-         std::vector<size_t> indices(p.mini_batch_size);
-         rng::iota(indices,0);
-         rng::shuffle(indices,gen);
-
-         auto it = boost::make_permutation_iterator(pairs.begin(), indices.begin());
-         auto jt = boost::make_permutation_iterator(pairs.begin(), indices.end());
-
-         net.step_gradient_descent( boost::make_iterator_range(it,jt), p.eta );
+         net.step_gradient_descent( boost::make_iterator_range(it,std::next(it,p.mini_batch_size)), p.eta );
+         std::advance(it,p.mini_batch_size);
       }
       p.progress(n);
    }

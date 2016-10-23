@@ -42,6 +42,11 @@ public:
 
    decltype(auto) begin() const { return data_.begin(); }
    decltype(auto) end()   const { return data_.end(); }
+
+   decltype(auto) data()       { return data_.data(); }
+   decltype(auto) data() const { return data_.data(); }
+   
+   decltype(auto) size() const { return data_.size(); }
 };
 
 
@@ -78,6 +83,7 @@ public:
    std::size_t size() const  { return size_; }
 
    Value& operator[]( std::size_t n ) const { return data_[n]; }
+   Value& at( std::size_t n ) const { if (n >= size()) throw; return data_[n]; }
 };
 
 
@@ -111,23 +117,23 @@ void dot( Matrix const& m, Vector1 const& a, Vector2& b )
 template <typename Matrix, typename Vector1, typename Vector2>
 void dott_add( Matrix const& m, Vector1 const& a, Vector2& b )
 {
-   for ( size_t k = 0 ; k < m.row_size() ; ++k )
-      for ( size_t l = 0 ; l < m.col_size() ; ++l )
-         b[k] += m(l,k)*a[l];
+   for ( size_t l = 0 ; l < m.col_size() ; ++l )
+      for ( size_t k = 0 ; k < m.row_size() ; ++k )
+         b[l] += m(k,l)*a[k];
 }
 
 
 template <typename Matrix, typename Vector1, typename Vector2>
 void dott( Matrix const& m, Vector1 const& a, Vector2& b )
 {
-   for ( size_t k = 0 ; k < m.row_size() ; ++k ) b[k] = 0.f;
+   for ( size_t l = 0 ; l < m.col_size() ; ++l ) b[l] = 0.f;
    dott_add(m,a,b);
 }
 
 template <typename Matrix, typename Vector>
 auto dott( Matrix const& m, Vector const& a )
 {
-   Vector b(m.row_size(),0.f);
+   Vector b(m.col_size(),0.f);
    dott_add(m,a,b);
    return b;
 }
@@ -138,14 +144,14 @@ auto dott( Matrix const& m, Vector const& a )
 
 // assumes that left vector is row and right is column
 template <typename Vector, typename Matrix>
-void outer( Vector const& u, Vector const& v, Matrix& m )
+void outer( Vector const& v, Vector const& u, Matrix& m )
 {
    assert( m.col_size() == u.size() );
    assert( m.row_size() == v.size() );
 
    for ( size_t l = 0 ; l < u.size() ; ++l )
       for ( size_t k = 0 ; k < v.size() ; ++k )
-         m(k,l) = u[l]*v[k];
+         m(k,l) = v[k]*u[l];
 }
 
 template <typename Vector>
