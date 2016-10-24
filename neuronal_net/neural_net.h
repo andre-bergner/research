@@ -1,5 +1,6 @@
 #include "matrix.h"
 #include "algorithm.h"
+#include "pop_back_iterator.h"
 
 #include <boost/iterator/permutation_iterator.hpp>
 #include <boost/range/iterator_range.hpp>
@@ -13,7 +14,6 @@
 // TODO
 // • custom allocator used by matrices & vectors → all memory is in one piece
 // • visitor gets passed into back_propagate function to update weights in place
-// • use span<> for inputs
 
 
 class NeuralNetwork
@@ -168,29 +168,29 @@ public:
 
       // 1. feed forward and store all node input and outputs
 
-      struct web_in_out {   // better name: axons? axon_web? tissue!
+      struct Tissue {
          vec_t  in;         // output of prev layer, i.e. post neuron
          vec_t  out;        // input to next layer, i.e. pre neuron
       };
 
-      std::vector<web_in_out>  webs;
-      webs.reserve(layers_.size());
+      std::vector<Tissue>  tissues;
+      tissues.reserve(layers_.size());
 
       vec_t in(x.size());
       rng::copy(x,in.begin());
 
       for ( auto const& l : layers_ )
       {
-         web_in_out w{ std::move(in), .out = vec_t(l.out_size()) };
+         Tissue w{ std::move(in), .out = vec_t(l.out_size()) };
          in = vec_t(l.out_size());
          feed_layer( l, w.in, in, [&](auto& v){ rng::copy(v,w.out.begin()); });
-         webs.push_back(std::move(w));
+         tissues.push_back(std::move(w));
       }
 
 
       // 2. feed backward -- back propagation
 
-      // TODO introduce pop_back_iterator for web
+      // TODO introduce pop_back_iterator for tissue
 
       auto& dlayers = dlayers_;
       for (auto& l : dlayers) {
@@ -198,27 +198,28 @@ public:
          rng::fill( l.biases, 0.f );
       }
 
+      auto  tiss = iter::back_remover(tissues);
+
       auto it_dl = dlayers.rbegin();
       auto& error = it_dl->biases;
       for ( int n=0; n < in.size(); ++n )
          error[n] = nabla_cost(in[n], expected[n]);
-      it_dl->multiply_nabla_activation(webs.back().out,error);
-      outer( error, webs.back().in, it_dl->weights );
+      it_dl->multiply_nabla_activation(tiss->out,error);
+      outer( error, tiss->in, it_dl->weights );
       ++it_dl;
-
-      webs.pop_back();
+      ++tiss;
 
       auto* error_pre = &error;
       auto it_w = layers_.rbegin();
-      for (; !webs.empty(); ++it_w, ++it_dl, webs.pop_back() )
+      for (; !tissues.empty(); ++it_w, ++it_dl, ++tiss )
       {
          auto& error = it_dl->biases;
          dott(it_w->weights, *error_pre, error);
          error_pre = &error;
 
-         it_dl->multiply_nabla_activation(webs.back().out,error);
+         it_dl->multiply_nabla_activation(tiss->out,error);
 
-         outer( error, webs.back().in, it_dl->weights );
+         outer( error, tiss->in, it_dl->weights );
       }
 
       return dlayers;

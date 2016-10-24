@@ -1,5 +1,6 @@
 #include <iostream>
 #include "neural_net.h"
+#include "print_tools.h"
 
 #include <jeayeson/jeayeson.hpp>
 
@@ -12,7 +13,6 @@
 
 int main()
 {
-
    auto load_mnist = [](std::string file_name = "data2.json")
    {
       using namespace jeayeson;
@@ -41,34 +41,20 @@ int main()
    };
 
 
-
-   std::cout << "loading data file." << std::endl;
-
-   auto training_data = load_mnist("data0.json");
+   auto training_data = [&]
+   {
+      std::cout << "  loading data file." << std::flush;
+      print::RunningWheel wheel;
+      return load_mnist("data0.json");
+   }();
 
    const size_t img_size = training_data[0].first.size();
 
 
 
-   auto make_progress_printer = []( size_t n_max )
-   {
-      return [n_max](size_t n)
-      {
-         auto perc = float(n+1) / float(n_max);
-         std::cout << "\r";
-         std::cout << "[" << std::string(int(20*perc),'*')
-                          << std::string(20-int(20*perc),' ')
-                   << "]  ";
-         std::cout << n+1 << "/" << n_max << " (" << int(100.f*perc) << "%)";
-         std::cout << std::flush;
-      };
-   };
-
-
-
    size_t n_epochs = 30;
 
-   NeuralNetwork  net({ img_size, 30, 10 });
+   NeuralNetwork  net({ img_size, 30, 20, 10 });
 
    auto print_cost = [s = std::ofstream("cost.txt"), &net, &training_data]() mutable
    {
@@ -77,31 +63,43 @@ int main()
       s << avg_cost.get() << std::endl;
    };
 
-   auto prog = [&,f=make_progress_printer(n_epochs)](auto n)mutable{f(n);print_cost();};
+   auto prog_bar = print::make_progress_printer(n_epochs,20,"… training network: ");
 
-   std::cout << "training network" << std::endl;
-   stochastic_gradien_descent(net, training_data, {n_epochs, 10, 3., prog});
+   auto prog = [&](auto n) mutable
+   {
+      prog_bar(n);
+      print_cost();
+   };
 
+   {
+      print::RunningWheel wheel;
+      prog_bar(0);
+      stochastic_gradien_descent(net, training_data, {n_epochs, 10, 3., prog});
+   }
 
-   std::cout << "\n testing..." << std::endl;
+   std::cout << "• testing..." << std::endl;
 
    auto max_idx = [](auto const& xs){
       auto me = std::max_element(xs.begin(),xs.end());
       return *me > 0.5f ? int(std::distance(xs.begin(),me)) : -1;
    };
 
+   auto prec_predicted = [&max_idx,&net]( auto const& pairs )
+   {
+      auto correct_prediction = [&](auto const& t){ return max_idx(t.second) == max_idx(net(t.first)); };
+      return float(rng::count_if(pairs, correct_prediction)) / float(pairs.size());
+   };
 
-   std::cout << "same set -----------" << std::endl;
+   std::cout << "• correct predictions within learned set: " << 100.f * prec_predicted(training_data) << "%" << std::endl;
 
-   for (size_t n=0; n < 20; ++n )
-      std::cout << max_idx(training_data[n].second) << "   vs    " << max_idx(net( training_data[n].first )) << std::endl;
-
-   std::cout << "other set -----------" << std::endl;
    training_data = load_mnist("data2.json");
+   std::cout << "• correct predictions of test set: " << 100.f * prec_predicted(training_data) << "%" << std::endl;
 
-   for (size_t n=0; n < 10; ++n )
-      std::cout << max_idx(training_data[n].second) << "   vs    " << max_idx(net( training_data[n].first )) << std::endl;
+
 }
+
+
+
 
 
 
