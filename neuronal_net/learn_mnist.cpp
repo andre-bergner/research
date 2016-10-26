@@ -1,4 +1,5 @@
 #include <iostream>
+
 #include "neural_net.h"
 #include "print_tools.h"
 
@@ -43,12 +44,13 @@ int main()
 
    auto training_data = [&]
    {
-      std::cout << "  loading data file." << std::flush;
       print::RunningWheel wheel;
+      std::cout << "  loading data file." << std::flush;
       return load_mnist("data0.json");
    }();
 
    const size_t img_size = training_data[0].first.size();
+   std::cout << std::endl;
 
 
 
@@ -63,7 +65,7 @@ int main()
       s << avg_cost.get() << std::endl;
    };
 
-   auto prog_bar = print::make_progress_printer(n_epochs,20,"… training network: ");
+   auto prog_bar = print::make_progress_printer(n_epochs,20,"⌛ training network: ");
 
    auto prog = [&](auto n) mutable
    {
@@ -76,7 +78,8 @@ int main()
       prog_bar(0);
       stochastic_gradien_descent(net, training_data, {n_epochs, 10, 3., prog});
    }
-
+   std::cout << std::endl;
+   
    std::cout << "• testing..." << std::endl;
 
    auto max_idx = [](auto const& xs){

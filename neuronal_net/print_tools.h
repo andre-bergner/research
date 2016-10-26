@@ -1,5 +1,9 @@
+#define TERMINAL_HEADER_ONLY
+#include <terminal/terminal.hpp>
+
 #include <atomic>
 #include <future>
+
 
 namespace print
 {
@@ -30,17 +34,20 @@ namespace print
 
    class RunningWheel
    {
+      terminal::cursor::absolute_pos  wheel_pos;
       std::atomic<bool>  running = {true};
       std::thread        t;
    public:
-      RunningWheel()
-      : t{[this]
+      RunningWheel( terminal::cursor::absolute_pos wp = terminal::cursor::current_position() )
+      : wheel_pos(wp)
+      , t{[this]
           {
              auto const rotation_char = "|/-\\|";
              int n = 0;
              while (running)
              {
-                std::cout << "\r" << rotation_char[n] << std::flush;
+                auto cur_pos = terminal::cursor::current_position();
+                std::cout << wheel_pos << rotation_char[n] << cur_pos << std::flush;
                 n = ++n & 0b11;
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
              }
@@ -49,9 +56,11 @@ namespace print
 
       ~RunningWheel()
       {
+         using namespace terminal::font;
          running = false;
          t.join();
-         std::cout << "\r✓" << std::endl;
+         auto cur_pos = terminal::cursor::current_position();
+         std::cout << wheel_pos << color::green << weight::bold << "✓" << reset << cur_pos << std::flush;
       }
    };
 
