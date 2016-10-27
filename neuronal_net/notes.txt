@@ -1,0 +1,78 @@
+
+splitting up layers more detailed into mixing (W.+b) and mapping (σ)
+
+x  →  W.+b  →  σ(.)  →  W.+b  →  σ(.)  =  y
+x  →  l1    →  l2    →  l3    →  l4    =  y 
+
+
+σ(x)  x in R^N
+
+derivative with respect to input vector x
+dσ/dx = σ'(x)       applied element wise
+
+
+g(x) = Wx+b  with W in R^NxM, b in R^N
+
+derivative with respect to input vector x
+dg/dx = W^T
+
+
+propagete dy/d. backwards through the network
+
+dy/dy = dy/dl4 = 1
+
+dy/dl3 = dσ/dl3 = σ'(l3)
+
+dy/dl2 = dy/dl3 * dl3/dl2
+       = σ'(l3) * dl3/dl2     | dl3/dl2 = d(W*l2+b)/dl2 = W^T
+       = W^T * σ'(l3)         | chain rule for matrices build from right to left
+       = (σ'(l3) * W)^T
+
+dy/dl1 = dy/dl3 * dl3/dl2 * dl2/dl1
+       = dy/dl2 * dl2/dl1             | dl3/dl1 = σ'(l1)
+       = dy/dl2 * σ'(l1)
+
+
+
+
+# TODO
+
+## Name Ideas
+
+* flowcess
+* flowness
+* flowron
+* flower++
+
+
+## EDSL to describe architecture
+
+
+```c++
+auto net_strucure =  input._2d(100,100) >>= dense.out(50)  >>= sigmoid
+                                        >>= dense          >>= softmax
+                                        >>= conv._2d(3,3)  >>= tanh
+                                        >>= conv._2d(3,2)  >>= tanh;
+net = compile(net_strucure);
+```
+
+
+
+## Scoped Allocator with pool in stack
+
+scoped alloc with id in pool ctor
+
+
+
+
+
+
+
+# Learnings
+
+### After weeks of bug hunting these were the three bugs that worked together
+
+* transposed matrix multiplication was broken
+* stochastic gradient descent was using ony first mini_batch_size pairs for training (10)
+  → apparently first 10 (which was printed) showd up as learned
+* input data was not normalized to 0..1 instead used 0..255
