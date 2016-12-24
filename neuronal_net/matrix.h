@@ -1,5 +1,6 @@
 #include <vector>
 #include <array>
+#include <algorithm>
 #include <cassert>
 
 
@@ -26,6 +27,12 @@ public:
       n_rows_ = n_rows;
       n_cols_ = n_cols;
       data_.resize( n_cols * n_rows );
+      return *this;
+   }
+
+   matrix& operator=( std::initializer_list<Value> const& values )
+   {
+      std::copy( values.begin(), values.end(), data_.begin() );
       return *this;
    }
 

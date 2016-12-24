@@ -2,6 +2,7 @@
 
 namespace iter
 {
+   struct pop_back_iterator_end {};
 
    template <typename Container>
    class pop_back_iterator : public boost::iterator_facade
@@ -23,6 +24,11 @@ namespace iter
       bool equal(pop_back_iterator const& that) const
       {
          return &cont_ == &that.cont_;
+      }
+
+      bool equal(pop_back_iterator_end) const
+      {
+         return not cont_.empty();
       }
 
       void increment() { cont_.pop_back(); }
