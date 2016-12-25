@@ -261,11 +261,8 @@ template <typename T>
 auto dfunc(T const& x) { return func(x) * (T{1}-func(x)); };
 
 
-template <typename T>
 class Sigmoidal
 {
-   using value_t = T;
-
 public:
 
    size_t in_size() const  { return 0; }  // means any, for now
@@ -273,6 +270,7 @@ public:
 
    // TODO generalize interface to remove unnecassary copy
 
+   template <typename T>
    void apply( Span<T const> in, Span<T> out) const
    {
       auto it = out.begin();
@@ -280,6 +278,7 @@ public:
          *it++ = func(x);
    }
 
+   template <typename T>
    void multiply_backward_derivative( Span<T> xs ) const
    {
       for ( auto& x : xs ) x *= dfunc(x);      
@@ -288,11 +287,11 @@ public:
 
 
 template <typename T>
-void apply( Sigmoidal<T> const& l, Span<T const> in, Span<T> out)
+void apply( Sigmoidal const& l, Span<T const> in, Span<T> out)
 { l.apply(in,out); }
 
 template <typename T>
-void multiply_backward_derivative( Sigmoidal<T> const& l, Span<T> inout)
+void multiply_backward_derivative( Sigmoidal const& l, Span<T> inout)
 { l.multiply_backward_derivative(inout); }
 
 

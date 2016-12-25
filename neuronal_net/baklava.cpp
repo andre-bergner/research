@@ -32,9 +32,9 @@ int main()
 
    vector<Layer<float>>  layers =
    {  make_random_mixing_layer(4,3)
-   ,  Sigmoidal<float>()
+   ,  Sigmoidal{}
    ,  make_random_mixing_layer(3,2)
-   ,  Sigmoidal<float>()
+   ,  Sigmoidal{}
    };
 
    vector<float> xs = { 0.1f, 0.5f, 100.f, -20.f };
