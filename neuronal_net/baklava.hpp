@@ -44,6 +44,18 @@ namespace detail {
    template <typename L>
    auto out_size( member_function_t, L const& l ) -> decltype( out_size(l) ) { return out_size(l); }
 
+   template <typename L, typename T>
+   auto apply( free_function_t, L const& l, Span<T const> in, Span<T> out) -> decltype( apply(l,in,out) ) { apply(l,in,out); }
+
+   template <typename L, typename T>
+   auto apply( member_function_t, L const& l, Span<T const> in, Span<T> out) -> decltype(l.apply(in,out)) { l.apply(in,out); }
+
+   template <typename L, typename T>
+   auto multiply_backward_derivative( free_function_t, L const& l, Span<T> inout) -> decltype( multiply_backward_derivative(l,inout) ) { multiply_backward_derivative(l,inout); }
+
+   template <typename L, typename T>
+   auto multiply_backward_derivative( member_function_t, L const& l, Span<T> inout) -> decltype(l.multiply_backward_derivative(inout)) { l.multiply_backward_derivative(inout); }
+
 }
 
 template <typename L>
@@ -52,16 +64,12 @@ auto adl_in_size( L const& l ) { return detail::in_size( member_function_t{}, l 
 template <typename L>
 auto adl_out_size( L const& l ) { return detail::out_size( member_function_t{}, l ); }
 
+template <typename L, typename T>
+auto adl_apply( L const& l, Span<T const> in, Span<T> out) { return detail::apply(member_function_t{}, l,in, out); }
 
-/*
-template <typename T>
-void apply( LinearMixing<T> const& l, Span<T const> in, Span<T> out)
-{ l.apply(in,out); }
+template <typename L, typename T>
+auto adl_multiply_backward_derivative( L const& l, Span<T> inout) { return detail::multiply_backward_derivative(member_function_t{}, l,inout); }
 
-template <typename T>
-void multiply_backward_derivative( LinearMixing<T> const& l, Span<T> inout)
-{ l.multiply_backward_derivative(inout); }
-*/
 
 
 template <typename T>
@@ -69,6 +77,7 @@ struct LayerConcept
 {
    virtual ~LayerConcept() = default;
    virtual LayerConcept* clone() const = 0;
+
    virtual size_t in_size_() const = 0;
    virtual size_t out_size_() const = 0;
    virtual void   apply_( Span<T const>, Span<T> ) const = 0;
@@ -89,10 +98,10 @@ struct LayerModel final : LayerConcept<T>
    size_t out_size_() const override  { return adl_out_size(m); }
 
    void   apply_( Span<T const> in, Span<T> out ) const override
-   { apply(m, in, out); }
+   { adl_apply(m, in, out); }
 
    void   multiply_backward_derivative_( Span<T> inout ) const override
-   { multiply_backward_derivative(m, inout); }
+   { adl_multiply_backward_derivative(m, inout); }
 };
 
 
@@ -230,15 +239,6 @@ public:
    }
 };
 
-template <typename T>
-void apply( LinearMixing<T> const& l, Span<T const> in, Span<T> out)
-{ l.apply(in,out); }
-
-template <typename T>
-void multiply_backward_derivative( LinearMixing<T> const& l, Span<T> inout)
-{ l.multiply_backward_derivative(inout); }
-
-
 
 
 
@@ -284,16 +284,6 @@ public:
       for ( auto& x : xs ) x *= dfunc(x);      
    }
 };
-
-
-template <typename T>
-void apply( Sigmoidal const& l, Span<T const> in, Span<T> out)
-{ l.apply(in,out); }
-
-template <typename T>
-void multiply_backward_derivative( Sigmoidal const& l, Span<T> inout)
-{ l.multiply_backward_derivative(inout); }
-
 
 
 
