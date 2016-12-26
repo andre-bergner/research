@@ -45,6 +45,8 @@ int main()
    cout << endl;
 
 
+   back_propagate(layers, Span<const float>(xs), Span<const float>(ys));
+
 
    // Back propagation
    // 1. feed fwd & store restult !
