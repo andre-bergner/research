@@ -58,10 +58,16 @@ namespace detail {
    auto has_nonlinear_derivative( member_function_t, L const& l) -> decltype(l.has_nonlinear_derivative()) { return l.has_nonlinear_derivative(); }
 
    template <typename L, typename T>
-   auto multiply_backward_derivative( free_function_t, L const& l, Span<T> inout) -> decltype( multiply_backward_derivative(l,inout) ) { multiply_backward_derivative(l,inout); }
+   auto multiply_backward_derivative( free_function_t, L const& l, Span<T const> layer_in, Span<T const> pre_deriv, Span<T> out) -> decltype( multiply_backward_derivative(l,layer_in, pre_deriv,out) )
+   {
+      multiply_backward_derivative(l, layer_in, pre_deriv, out);
+   }
 
    template <typename L, typename T>
-   auto multiply_backward_derivative( member_function_t, L const& l, Span<T> inout) -> decltype(l.multiply_backward_derivative(inout)) { l.multiply_backward_derivative(inout); }
+   auto multiply_backward_derivative( member_function_t, L const& l, Span<T const> layer_in, Span<T const> pre_deriv, Span<T> out) -> decltype(l.multiply_backward_derivative(layer_in, pre_deriv,out))
+   {
+      l.multiply_backward_derivative(layer_in, pre_deriv, out);
+   }
 
 }
 
@@ -79,7 +85,10 @@ template <typename L>
 auto adl_has_nonlinear_derivative( L const& l) { return detail::has_nonlinear_derivative(member_function_t{}, l); }
 
 template <typename L, typename T>
-auto adl_multiply_backward_derivative( L const& l, Span<T> inout) { return detail::multiply_backward_derivative(member_function_t{}, l,inout); }
+auto adl_multiply_backward_derivative( L const& l, Span<T const> layer_in, Span<T const> pre_deriv, Span<T> out)
+{
+   return detail::multiply_backward_derivative(member_function_t{}, l, layer_in, pre_deriv, out);
+}
 
 
 
@@ -94,7 +103,7 @@ struct LayerConcept
    virtual void   apply_( Span<T const>, Span<T> ) const = 0;
 
    virtual bool   has_nonlinear_derivative_() const = 0;
-   virtual void   multiply_backward_derivative_( Span<T> ) const = 0;
+   virtual void   multiply_backward_derivative_( Span<T const>, Span<T const>, Span<T> ) const = 0;
 };
 
 
@@ -117,8 +126,8 @@ struct LayerModel final : LayerConcept<T>
    bool has_nonlinear_derivative_() const override
    { return adl_has_nonlinear_derivative(m); }
 
-   void   multiply_backward_derivative_( Span<T> inout ) const override
-   { adl_multiply_backward_derivative(m, inout); }
+   void   multiply_backward_derivative_( Span<T const> layer_in, Span<T const> pre_deriv, Span<T> out ) const override
+   { adl_multiply_backward_derivative(m, layer_in, pre_deriv, out); }
 };
 
 
@@ -145,8 +154,8 @@ public:
    bool has_nonlinear_derivative() const
    { return l_->has_nonlinear_derivative_(); }
 
-   void   multiply_backward_derivative( Span<T> inout ) const
-   { return l_->multiply_backward_derivative_(inout); }
+   void   multiply_backward_derivative( Span<T const> layer_in, Span<T const> pre_deriv, Span<T> out ) const
+   { return l_->multiply_backward_derivative_(layer_in, pre_deriv, out); }
 };
 
 
@@ -203,8 +212,26 @@ auto back_propagate( LayerRange const& layers, Span<const Value> input, Span<con
       layer_output.push_back( std::move(l_output) );
    }
 
-   // 2. propagate backword and compute derivatives.
+   // 2. propagate backwards and compute derivatives.
 
+   // TODO move outside:
+   //auto cost       = [](auto const& x, auto const& y) { return  0.5*(x-y)*(x-y); };
+   auto cost_deriv = [](auto const& x, auto const& y) { return  x - y; };
+
+   std::vector<Value> derivative, temp_deriv;
+
+
+   derivative.resize(input.size());
+   for ( size_t n=0; n < input.size(); ++n )
+      derivative[n] = cost_deriv(input[n], output[n]);
+
+   auto it_lay_out = layer_output.rbegin();
+   for (auto& l : layers | rng::reverse)
+   {
+      temp_deriv.resize(it_lay_out->size());
+      l.multiply_backward_derivative( *it_lay_out, derivative, temp_deriv );
+      std::swap(derivative,temp_deriv);
+   }
 
 
 }
@@ -259,7 +286,7 @@ public:
       return *this;
    }
 
-   void apply( Span<T const> in, Span<T> out) const
+   void apply(Span<T const> in, Span<T> out) const
    {
       assert( in.size() == in_size() );
       assert( out.size() == out_size() );
@@ -270,9 +297,9 @@ public:
 
    bool has_nonlinear_derivative() const { return false; }
 
-   void multiply_backward_derivative( Span<T> ) const
+   void multiply_backward_derivative(Span<T const> layer_in, Span<T const> pre_deriv, Span<T> out) const
    {
-
+      //dott(weights, in, out);
    }
 };
 
@@ -316,9 +343,10 @@ public:
    }
 
    template <typename T>
-   void multiply_backward_derivative( Span<T> xs ) const
+   void multiply_backward_derivative(Span<T const> layer_in, Span<T const> pre_deriv, Span<T> out) const
    {
-      for ( auto& x : xs ) x *= dfunc(x);      
+      //for ( auto [&x,&pdx,&dx] : zip(layer_in,pre_deriv,out) ) dx *= pdx*dfunc(x);
+      rng::transform(layer_in, pre_deriv, out,[](auto const& x, auto const& pdx){ return pdx*dfunc(x); });
    }
 };
 
@@ -353,7 +381,7 @@ public:
       //for ( auto x )
    }
 
-   void multiply_backward_derivative( Span<T> ) const
+   void multiply_backward_derivative(Span<T const> layer_in, Span<T const> pre_deriv, Span<T> out) const
    {
 
    }

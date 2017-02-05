@@ -5,6 +5,15 @@
 
 namespace rng
 {
+   template <typename It> struct range_t { It b,e; };
+
+   template <typename It> It begin(range_t<It>& r)       { return r.b; }
+   template <typename It> It end(range_t<It>& r)         { return r.e; }
+   template <typename It> It begin(range_t<It> const& r) { return r.b; }
+   template <typename It> It end(range_t<It> const& r)   { return r.e; }
+
+   template <typename It> range_t<It> range(It b, It e) { return {b,e}; }
+
    
    template <typename Range, typename Iterator>
    decltype(auto) copy( Range const& r, Iterator i )
@@ -67,6 +76,14 @@ namespace rng
       return std::transform( std::begin(r1), std::end(r1), std::begin(r2), std::begin(r3), std::forward<Func>(f) );
    }
 */
+
+
+   struct reverse_t {};
+
+   template <typename Range>
+   auto operator| (Range&& r, reverse_t) { return range(r.rbegin(),r.rend()); }
+
+   namespace { auto&& reverse = reverse_t{}; }
 }
 
 

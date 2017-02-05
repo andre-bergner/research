@@ -93,6 +93,18 @@ public:
    Value& at( std::size_t n ) const { if (n >= size()) throw; return data_[n]; }
 };
 
+template <typename Container, typename Value>
+Container from_span( Span<Value const> range )
+{
+   return Container( range.begin(), range.end() );
+}
+
+
+
+
+
+
+
 
 
 template <typename Vector1, typename Vector2, typename Vector3>
