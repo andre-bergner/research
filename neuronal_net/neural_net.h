@@ -214,10 +214,10 @@ public:
       for (; !tissues.empty(); ++it_w, ++it_dl, ++tiss )
       {
          auto& error = it_dl->biases;
-         dott(it_w->weights, *error_pre, error);
+         dott(it_w->weights, *error_pre, error);               // derivative of mixing layer
          error_pre = &error;
 
-         it_dl->multiply_nabla_activation(tiss->out,error);
+         it_dl->multiply_nabla_activation(tiss->out,error);    // derivative of activation layer (inplace)
 
          outer( error, tiss->in, it_dl->weights );
       }

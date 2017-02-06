@@ -17,26 +17,38 @@ derivative with respect to input vector x
 dg/dx = W^T
 
 
-propagete dy/d. backwards through the network
+• propagete dy/d. backwards through the network
+• l4 = y
+• multiply from left -- chain rule for matrices build from right to left
+• v∙w denotes the element-wise vector product
+• M×v denotes matrix times vector product
+• a*b denotes a generic product
+• derivative transposes argument: dWx/dx = W^T     dv/dx = v^T
 
 dy/dy = dy/dl4 = 1
 
 dy/dl3 = dσ/dl3 = σ'(l3)
 
-dy/dl2 = dy/dl3 * dl3/dl2
-       = σ'(l3) * dl3/dl2     | dl3/dl2 = d(W*l2+b)/dl2 = W^T
-       = W^T * σ'(l3)         | chain rule for matrices build from right to left
-       = (σ'(l3) * W)^T
-
-dy/dl1 = dy/dl3 * dl3/dl2 * dl2/dl1
-       = dy/dl2 * dl2/dl1             | dl3/dl1 = σ'(l1)
-       = dy/dl2 * σ'(l1)
+dy/dl2 = dl3/dl2 * dy/dl3
+       = dl3/dl2 * σ'(l3)             | dl3/dl2 = d(W×l2+b)/dl2 = W^T
+       = W^T × σ'(l3)                 | = (σ'(l3) * W)^T
 
 
-dy/dW3 = dy/dl3 * dl3/dW3     | l3 = W3•l2 + b3  →  dl3/dW3 = l2
+dy/dl1 = dl2/dl1 * dl3/dl2 * dy/dl3
+       = dl2/dl1 * dy/dl2             | dl3/dl1 = σ'(l1)
+       = σ'(l1) * dy/dl2
+       = σ'(l1) ∙ W^T × σ'(l3)
+
+dy/dx  = dl1/dx * dl2/dl1 * dl3/dl2 * dy/dl3
+       = ...
+       = W^T × σ'(l1) ∙ W^T × σ'(l3)
+
+
+• branch derivatives → computing change in coefficients
+
+dy/dW3 = dl3/dW3 * dy/dl3             | l3 = W3×l2 + b3  →  dl3/dW3 = l2
        = l2 * dy/dl3
        = |l2><σ'(l3)|
-
 
 
 --------------------------------------------------------------------------------------------------------

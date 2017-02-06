@@ -5,6 +5,9 @@
 #include <array>
 #include <memory>
 #include <cmath>
+#include <experimental/any>
+
+namespace std { using namespace experimental; }
 
 // Types of Layers:
 //
@@ -69,6 +72,19 @@ namespace detail {
       l.multiply_backward_derivative(layer_in, pre_deriv, out);
    }
 
+
+   template <typename L, typename T>
+   auto parameter_derivative( free_function_t, L const& l, Span<T const> layer_in, Span<T const> pre_deriv) -> decltype(parameter_derivative(l,layer_in, pre_deriv))
+   {
+      return parameter_derivative(l, layer_in, pre_deriv);
+   }
+
+   template <typename L, typename T>
+   auto parameter_derivative( member_function_t, L const& l, Span<T const> layer_in, Span<T const> pre_deriv) -> decltype(l.parameter_derivative(layer_in, pre_deriv))
+   {
+      return l.parameter_derivative(layer_in, pre_deriv);
+   }
+
 }
 
 template <typename L>
@@ -90,6 +106,12 @@ auto adl_multiply_backward_derivative( L const& l, Span<T const> layer_in, Span<
    return detail::multiply_backward_derivative(member_function_t{}, l, layer_in, pre_deriv, out);
 }
 
+template <typename L, typename T>
+std::any adl_parameter_derivative( L const& l, Span<T const> layer_in, Span<T const> pre_deriv)
+{
+   return detail::parameter_derivative(member_function_t{}, l, layer_in, pre_deriv);
+}
+
 
 
 template <typename T>
@@ -104,6 +126,7 @@ struct LayerConcept
 
    virtual bool   has_nonlinear_derivative_() const = 0;
    virtual void   multiply_backward_derivative_( Span<T const>, Span<T const>, Span<T> ) const = 0;
+   virtual auto   parameter_derivative_( Span<T const>, Span<T const> ) const -> std::any = 0;
 };
 
 
@@ -128,6 +151,9 @@ struct LayerModel final : LayerConcept<T>
 
    void   multiply_backward_derivative_( Span<T const> layer_in, Span<T const> pre_deriv, Span<T> out ) const override
    { adl_multiply_backward_derivative(m, layer_in, pre_deriv, out); }
+
+   std::any parameter_derivative_( Span<T const> layer_in, Span<T const> pre_deriv ) const override
+   { return adl_parameter_derivative(m, layer_in, pre_deriv); }
 };
 
 
@@ -156,6 +182,9 @@ public:
 
    void   multiply_backward_derivative( Span<T const> layer_in, Span<T const> pre_deriv, Span<T> out ) const
    { return l_->multiply_backward_derivative_(layer_in, pre_deriv, out); }
+
+   std::any parameter_derivative( Span<T const> layer_in, Span<T const> pre_deriv ) const
+   { return l_->parameter_derivative_(layer_in, pre_deriv); }
 };
 
 
@@ -166,8 +195,19 @@ public:
 template <typename Layer>
 bool has_nonlinear_derivative(Layer const& l) { return true; }
 
+template <typename Layer, typename T>
+std::any parameter_derivative(Layer const& l, Span<T const> layer_in, Span<T const> pre_deriv)
+{ return {}; }
 
 
+
+// currently a layer size of 0 defines that a layer's output size is not fixed but
+// depending on the input (examples: nonlinear mapping layers, convolutional layers)
+template <typename Layer>
+bool has_fixed_output(Layer const& l)
+{
+   return l.out_size() > 0;
+}
 
 
 
@@ -182,7 +222,7 @@ auto feed( LayerRange const& layers, Span<const Value> input )
 
    for ( auto const& l : layers )
    {
-      auto size = l.out_size() > 0 ? l.out_size() : input.size();
+      auto const size = has_fixed_output(l) ? l.out_size() : input.size();
       output.resize(size);     // TODO should be uninitialized and not copy!!!
       l.apply( input, output );
       input = output;
@@ -201,39 +241,44 @@ auto back_propagate( LayerRange const& layers, Span<const Value> input, Span<con
 
    using result_t = std::vector<Value>;
 
-   std::vector<result_t> layer_output{ result_t(input.size()) };
-   rng::copy(input, layer_output.back().begin());
+   std::vector<result_t> layer_outputs = { result_t(input.begin(), input.end()) };
 
    for (auto const& l : layers)
    {
-      auto size = l.out_size() > 0 ? l.out_size() : layer_output.back().size();
+      auto const size = has_fixed_output(l) ? l.out_size() : layer_outputs.back().size();
       result_t l_output(size);
-      l.apply( layer_output.back(), l_output );
-      layer_output.push_back( std::move(l_output) );
+      l.apply( layer_outputs.back(), l_output );
+      layer_outputs.push_back( std::move(l_output) );
    }
 
    // 2. propagate backwards and compute derivatives.
 
    // TODO move outside:
-   //auto cost       = [](auto const& x, auto const& y) { return  0.5*(x-y)*(x-y); };
+   // auto cost    = [](auto const& x, auto const& y) { return  0.5*(x-y)*(x-y); };
    auto cost_deriv = [](auto const& x, auto const& y) { return  x - y; };
 
-   std::vector<Value> derivative, temp_deriv;
 
+   std::vector<Value> derivative(input.size());
+   rng::transform(input, output, derivative, cost_deriv);
 
-   derivative.resize(input.size());
-   for ( size_t n=0; n < input.size(); ++n )
-      derivative[n] = cost_deriv(input[n], output[n]);
-
-   auto it_lay_out = layer_output.rbegin();
+   std::vector<std::any> layer_derivatives(layers.size());
+   
+   // C++17: for (auto& [l,lo,dl] : zip(layers, layer_outputs, layer_derivatives) | rng::reverse)
+   auto it_lay_out = layer_outputs.rbegin();
+   auto it_lay_der = layer_derivatives.rbegin();
    for (auto& l : layers | rng::reverse)
    {
-      temp_deriv.resize(it_lay_out->size());
-      l.multiply_backward_derivative( *it_lay_out, derivative, temp_deriv );
-      std::swap(derivative,temp_deriv);
+      auto& lo = *it_lay_out++;
+      auto& dl = *it_lay_der++;
+
+      dl = l.parameter_derivative( lo, derivative );
+
+      std::vector<Value> next_deriv(lo.size());
+      l.multiply_backward_derivative( lo, derivative, next_deriv );
+      derivative = std::move(next_deriv);
    }
 
-
+   return layer_derivatives;
 }
 
 
@@ -345,7 +390,7 @@ public:
    template <typename T>
    void multiply_backward_derivative(Span<T const> layer_in, Span<T const> pre_deriv, Span<T> out) const
    {
-      //for ( auto [&x,&pdx,&dx] : zip(layer_in,pre_deriv,out) ) dx *= pdx*dfunc(x);
+      //for ( auto& [x,pdx,dx] : zip(layer_in,pre_deriv,out) ) dx *= pdx*dfunc(x);
       rng::transform(layer_in, pre_deriv, out,[](auto const& x, auto const& pdx){ return pdx*dfunc(x); });
    }
 };
