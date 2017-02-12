@@ -1,0 +1,30 @@
+
+     u[t+1] = e(γ+iωn) e(κ(L+R)) u[t]
+
+(1)  e^X = 1 + X + X^2/2 + X^3/6 + ...
+
+     u[t+1] ≈ e(γ+iωn) (1 + κ(L+R)) u[t]
+
+
+(2)  e^X = 1/e^-X = 1/(1 - X + X^2/2 - X^3/6 + ...)
+
+     (1 - κ(L+R)) u[t+1] ≈ e(γ+iωn) u[t]
+
+
+(3)  e^X = e^aX/e^-bX = (1 + aX + (aX)^2/2 + ...) / (1 - bX + (bX)^2/2 - ...)    a+b = 1
+
+     (1 - bκ(L+R)) u[t+1] ≈ e(γ+iωn) (1 + aκ(L+R)) u[t]
+
+      (1-bκK) Du  =  A(1 + aκK) u
+
+
+z -> (1+cz) / (c+z)
+D -> (1+cD) / (c+D)
+
+Du_t -> Du_t+1           Du_t = A(1 + κK) u_t   
+
+(1+cD)u = A(1 + κK) (c+D) u                    (1+cD)u = A(1 + aκK)/(1 - bκK) (c+D) u
+u + cDu = A(1 + κK) cu  +  A(1 + κK) Du        u + cDu = A(1 + aκK)/(1 - bκK) cu  +  A(1 + aκK)/(1 - bκK) Du 
+(c - A(1 + κK)) Du  =  A(1 + κK) cu - u        cDu - A(1 + aκK)/(1 - bκK) Du  =  A(1 + aκK)/(1 - bκK) cu - u
+                                               (c(1 - bκK) - A(1 + aκK)) Du  =  A(1 + aκK) cu - (1 - bκK) u
+                                               (c-A - (aA-cb)κK)) Du  =  A(1 + aκK) cu - (1 - bκK) u

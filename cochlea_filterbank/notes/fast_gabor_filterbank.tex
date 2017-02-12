@@ -1,0 +1,624 @@
+\documentclass[journal]{IEEEtran}
+\usepackage[dvips]{graphicx}
+
+% Some very useful LaTeX packages include:
+% (uncomment the ones you want to load)
+
+
+
+
+% *** GRAPHICS RELATED PACKAGES ***
+%
+%\ifCLASSINFOpdf
+  % \usepackage[pdftex]{graphicx}
+  % declare the path(s) where your graphic files are
+  % \graphicspath{{../pdf/}{../jpeg/}}
+  % and their extensions so you won't have to specify these with
+  % every instance of \includegraphics
+  % \DeclareGraphicsExtensions{.pdf,.jpeg,.png}
+%\else
+  % or other class option (dvipsone, dvipdf, if not using dvips). graphicx
+  % will default to the driver specified in the system graphics.cfg if no
+  % driver is specified.
+  % \usepackage[dvips]{graphicx}
+  % declare the path(s) where your graphic files are
+  % \graphicspath{{../eps/}}
+  % and their extensions so you won't have to specify these with
+  % every instance of \includegraphics
+  % \DeclareGraphicsExtensions{.eps}
+%\fi
+% graphicx was written by David Carlisle and Sebastian Rahtz. It is
+% required if you want graphics, photos, etc. graphicx.sty is already
+% installed on most LaTeX systems. The latest version and documentation can
+% be obtained at: 
+% http://www.ctan.org/tex-archive/macros/latex/required/graphics/
+% Another good source of documentation is "Using Imported Graphics in
+% LaTeX2e" by Keith Reckdahl which can be found as epslatex.ps or
+% epslatex.pdf at: http://www.ctan.org/tex-archive/info/
+%
+% latex, and pdflatex in dvi mode, support graphics in encapsulated
+% postscript (.eps) format. pdflatex in pdf mode supports graphics
+% in .pdf, .jpeg, .png and .mps (metapost) formats. Users should ensure
+% that all non-photo figures use a vector format (.eps, .pdf, .mps) and
+% not a bitmapped formats (.jpeg, .png). IEEE frowns on bitmapped formats
+% which can result in "jaggedy"/blurry rendering of lines and letters as
+% well as large increases in file sizes.
+%
+% You can find documentation about the pdfTeX application at:
+% http://www.tug.org/applications/pdftex
+
+
+
+% *** MATH PACKAGES ***
+%
+\usepackage[cmex10]{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+% A popular package from the American Mathematical Society that provides
+% many useful and powerful commands for dealing with mathematics. If using
+% it, be sure to load this package with the cmex10 option to ensure that
+% only type 1 fonts will utilized at all point sizes. Without this option,
+% it is possible that some math symbols, particularly those within
+% footnotes, will be rendered in bitmap form which will result in a
+% document that can not be IEEE Xplore compliant!
+%
+% Also, note that the amsmath package sets \interdisplaylinepenalty to 10000
+% thus preventing page breaks from occurring within multiline equations. Use:
+%\interdisplaylinepenalty=2500
+% after loading amsmath to restore such page breaks as IEEEtran.cls normally
+% does. amsmath.sty is already installed on most LaTeX systems. The latest
+% version and documentation can be obtained at:
+% http://www.ctan.org/tex-archive/macros/latex/required/amslatex/math/
+
+
+
+% *** ALIGNMENT PACKAGES ***
+%
+%\usepackage{array}
+% Frank Mittelbach's and David Carlisle's array.sty patches and improves
+% the standard LaTeX2e array and tabular environments to provide better
+% appearance and additional user controls. As the default LaTeX2e table
+% generation code is lacking to the point of almost being broken with
+% respect to the quality of the end results, all users are strongly
+% advised to use an enhanced (at the very least that provided by array.sty)
+% set of table tools. array.sty is already installed on most systems. The
+% latest version and documentation can be obtained at:
+% http://www.ctan.org/tex-archive/macros/latex/required/tools/
+
+
+
+
+% IEEEtran contains the IEEEeqnarray family of commands that can be used to
+% generate multiline equations as well as matrices, tables, etc., of high
+% quality.
+
+
+%\usepackage{eqparbox}
+% Also of notable interest is Scott Pakin's eqparbox package for creating
+% (automatically sized) equal width boxes - aka "natural width parboxes".
+% Available at:
+% http://www.ctan.org/tex-archive/macros/latex/contrib/eqparbox/
+
+
+
+
+
+% *** SUBFIGURE PACKAGES ***
+%\usepackage[tight,footnotesize]{subfigure}
+% subfigure.sty was written by Steven Douglas Cochran. This package makes it
+% easy to put subfigures in your figures. e.g., "Figure 1a and 1b". For IEEE
+% work, it is a good idea to load it with the tight package option to reduce
+% the amount of white space around the subfigures. subfigure.sty is already
+% installed on most LaTeX systems. The latest version and documentation can
+% be obtained at:
+% http://www.ctan.org/tex-archive/obsolete/macros/latex/contrib/subfigure/
+% subfigure.sty has been superceeded by subfig.sty.
+
+
+
+%\usepackage[caption=false]{caption}
+%\usepackage[font=footnotesize]{subfig}
+% subfig.sty, also written by Steven Douglas Cochran, is the modern
+% replacement for subfigure.sty. However, subfig.sty requires and
+% automatically loads Axel Sommerfeldt's caption.sty which will override
+% IEEEtran.cls handling of captions and this will result in nonIEEE style
+% figure/table captions. To prevent this problem, be sure and preload
+% caption.sty with its "caption=false" package option. This is will preserve
+% IEEEtran.cls handing of captions. Version 1.3 (2005/06/28) and later 
+% (recommended due to many improvements over 1.2) of subfig.sty supports
+% the caption=false option directly:
+%\usepackage[caption=false,font=footnotesize]{subfig}
+%
+% The latest version and documentation can be obtained at:
+% http://www.ctan.org/tex-archive/macros/latex/contrib/subfig/
+% The latest version and documentation of caption.sty can be obtained at:
+% http://www.ctan.org/tex-archive/macros/latex/contrib/caption/
+
+
+
+
+% *** FLOAT PACKAGES ***
+%
+%\usepackage{fixltx2e}
+% fixltx2e, the successor to the earlier fix2col.sty, was written by
+% Frank Mittelbach and David Carlisle. This package corrects a few problems
+% in the LaTeX2e kernel, the most notable of which is that in current
+% LaTeX2e releases, the ordering of single and double column floats is not
+% guaranteed to be preserved. Thus, an unpatched LaTeX2e can allow a
+% single column figure to be placed prior to an earlier double column
+% figure. The latest version and documentation can be found at:
+% http://www.ctan.org/tex-archive/macros/latex/base/
+
+
+
+%\usepackage{stfloats}
+% stfloats.sty was written by Sigitas Tolusis. This package gives LaTeX2e
+% the ability to do double column floats at the bottom of the page as well
+% as the top. (e.g., "\begin{figure*}[!b]" is not normally possible in
+% LaTeX2e). It also provides a command:
+%\fnbelowfloat
+% to enable the placement of footnotes below bottom floats (the standard
+% LaTeX2e kernel puts them above bottom floats). This is an invasive package
+% which rewrites many portions of the LaTeX2e float routines. It may not work
+% with other packages that modify the LaTeX2e float routines. The latest
+% version and documentation can be obtained at:
+% http://www.ctan.org/tex-archive/macros/latex/contrib/sttools/
+% Documentation is contained in the stfloats.sty comments as well as in the
+% presfull.pdf file. Do not use the stfloats baselinefloat ability as IEEE
+% does not allow \baselineskip to stretch. Authors submitting work to the
+% IEEE should note that IEEE rarely uses double column equations and
+% that authors should try to avoid such use. Do not be tempted to use the
+% cuted.sty or midfloat.sty packages (also by Sigitas Tolusis) as IEEE does
+% not format its papers in such ways.
+
+
+%\ifCLASSOPTIONcaptionsoff
+%  \usepackage[nomarkers]{endfloat}
+% \let\MYoriglatexcaption\caption
+% \renewcommand{\caption}[2][\relax]{\MYoriglatexcaption[#2]{#2}}
+%\fi
+% endfloat.sty was written by James Darrell McCauley and Jeff Goldberg.
+% This package may be useful when used in conjunction with IEEEtran.cls'
+% captionsoff option. Some IEEE journals/societies require that submissions
+% have lists of figures/tables at the end of the paper and that
+% figures/tables without any captions are placed on a page by themselves at
+% the end of the document. If needed, the draftcls IEEEtran class option or
+% \CLASSINPUTbaselinestretch interface can be used to increase the line
+% spacing as well. Be sure and use the nomarkers option of endfloat to
+% prevent endfloat from "marking" where the figures would have been placed
+% in the text. The two hack lines of code above are a slight modification of
+% that suggested by in the endfloat docs (section 8.3.1) to ensure that
+% the full captions always appear in the list of figures/tables - even if
+% the user used the short optional argument of \caption[]{}.
+% IEEE papers do not typically make use of \caption[]'s optional argument,
+% so this should not be an issue. A similar trick can be used to disable
+% captions of packages such as subfig.sty that lack options to turn off
+% the subcaptions:
+% For subfig.sty:
+% \let\MYorigsubfloat\subfloat
+% \renewcommand{\subfloat}[2][\relax]{\MYorigsubfloat[]{#2}}
+% For subfigure.sty:
+% \let\MYorigsubfigure\subfigure
+% \renewcommand{\subfigure}[2][\relax]{\MYorigsubfigure[]{#2}}
+% However, the above trick will not work if both optional arguments of
+% the \subfloat/subfig command are used. Furthermore, there needs to be a
+% description of each subfigure *somewhere* and endfloat does not add
+% subfigure captions to its list of figures. Thus, the best approach is to
+% avoid the use of subfigure captions (many IEEE journals avoid them anyway)
+% and instead reference/explain all the subfigures within the main caption.
+% The latest version of endfloat.sty and its documentation can obtained at:
+% http://www.ctan.org/tex-archive/macros/latex/contrib/endfloat/
+%
+% The IEEEtran \ifCLASSOPTIONcaptionsoff conditional can also be used
+% later in the document, say, to conditionally put the References on a 
+% page by themselves.
+
+
+
+
+
+% *** PDF, URL AND HYPERLINK PACKAGES ***
+%
+%\usepackage{url}
+% url.sty was written by Donald Arseneau. It provides better support for
+% handling and breaking URLs. url.sty is already installed on most LaTeX
+% systems. The latest version can be obtained at:
+% http://www.ctan.org/tex-archive/macros/latex/contrib/misc/
+% Read the url.sty source comments for usage information. Basically,
+% \url{my_url_here}.
+
+
+
+
+
+% *** Do not adjust lengths that control margins, column widths, etc. ***
+% *** Do not use packages that alter fonts (such as pslatex).         ***
+% There should be no need to do such things with IEEEtran.cls V1.6 and later.
+% (Unless specifically asked to do so by the journal or conference you plan
+% to submit to, of course. )
+
+
+
+
+% correct bad hyphenation here
+\hyphenation{wave-let}
+
+
+\newcommand	{\WT}	{$\mathcal{W}_{\!\psi}x$ }
+\newcommand	{\z}		{z^{-1}}
+
+\newcommand	{\be}	{\begin{equation}}
+\newcommand	{\ee}	{\end{equation}}
+
+
+
+
+
+\begin{document}
+\title {The fastest possible realtime Gabor transform}
+\author{A. Bergner \thanks{Berlin, Germany} }
+\date  {\today}
+\maketitle
+
+
+
+
+\begin{abstract}
+
+The Abstract...
+
+\end{abstract}
+
+\begin{IEEEkeywords}
+  gabor transform, realtime, fast implementation
+\end{IEEEkeywords}
+
+
+
+%================================================================================================
+%================================================================================================
+
+
+  \section{Inroduction}
+  \label{sec:intro}
+
+
+\IEEEPARstart{T}{he} Gabor transform (GT) is a standard tool in many signal
+analysis and image processing applications, in particular when dealing with
+instationary signals or signals with inherent multiple timescales (e.g. EEG
+analysis, music/audio, geophysics, etc.).
+
+Interesting property (difficult to impossible with STFT):  high precession phase retrieval and instantaneous frequency
+
+
+
+The GT $\mathcal{G}x$ of a signal $x(t)$ is given by the inner product
+\begin{equation} \label{def:GT}
+  \mathcal{G}x\,(\omega,\tau) \ := \ \langle \epsilon_{\omega\tau} , x \rangle
+    \ = \ \int_{\mathbb R}\!\! dt \; \epsilon_{\omega\tau} (t)\, x(t)
+\end{equation}
+The Gabor atoms $\epsilon_{\omega t}$ form a two-parametric family
+\begin{equation}
+  \mathcal{E} \ = \ \left\{ \epsilon_{\omega\tau}(t) =  e^{i\omega (t-\tau)} e^{-(t-\tau)^2}
+                      \ \middle| \   \omega,\tau \in \mathbb{R} \right\}
+\end{equation}
+of a by $\tau$ translated gaussian windowed complex oscillations.
+
+The GT has the disadvantage that the inner product (\ref{def:GT}) has to be computed for every
+point $(\omega,\tau)$ in the time-frequency plane.
+If (\ref{def:GT}) is computed in this direct fashion the computational amount is enormous
+if a high resolution approximation of the GT is needed.
+Fortunately (\ref{def:GT}) can be rewritten as a convolution operation which in turn can be
+computed utilizing the fast convolution algorithm, which at least reduces the computational
+complexity from ${\mathcal O}(N^2)$ to ${\mathcal O}(N log N )$
+
+Based on the idea of convolution is: Filterbanks (IIR as convolution) \cite{Unser1994}
+
+Other methods: interpolating a STFT, sliding FFT
+
+....
+
+The method presented here is inspired by the functionality of the cochlea inside the inner ear.
+From that a coupled filter bank is derived which outperforms any known method for computing
+an discrete approximation of the continuous GT. My method has ${\mathcal O}(N)$ complexity
+and needs 3 additions and 3 multiplications per output sample for real and imaginary part respectively,
+which is even less then the number of operation needed for just linear interpolating a STFT.
+Further no pre- or post-processing is needed with this method.
+
+
+
+
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+
+  \section{Derivation of the coupled filter bank}
+  \label{sec:construction}
+
+The construction of the filter bank was motivated by the functionality of the cochlea inside the inner ear.
+I will not go into all the details of the inner ear and the functionality of the cochlea in particular (see
+refs for more details). However, given that the cochlea is a membrane with a heterogenous frequency response
+along its axis (tonotopic map) the linear key properties can be modeled by a damped inhomogeneous complex diffusion equation (similar to a Schr\"odinger equation), namely
+\be \label{pde}
+	\partial_t u = (\gamma + i x + \varkappa \partial_x^2 ) u  +  f(t),
+\ee
+where $u(x,t)$ is the deviation of the membrane from it point of rest, $\gamma$ is the damping coefficient,
+$\omega x$ is the inhomogeneous frequency term and $\varkappa$ the membrane's coupling strength (TODO correct term).
+
+The solution of the unforced system ($f \equiv 0$) can be found analytically. We use the ansatz
+\be \label{ansatz1}
+	u(x,t) = e^{at + bt^2 + ct^3} e^{ixt}
+\ee
+Inserting (\ref{ansatz1}) into (\ref{pde}) one obtains
+$$
+	a  +  2 b t  +  3 c t^2  +  ix \; = \; \gamma + i x - \varkappa t^2,
+$$
+and after collecting all terms the coefficients can be determined to be $a=\gamma$, $b=0$, and $\varkappa = -3c$
+which leaves us with the final solution
+\be \label{pde-solution}
+	u(x,t) = e^{\gamma t - \varkappa t^3/3} e^{ixt}
+\ee
+(TODO describe solution: initial condition, cut-off gaussian-like impulse window response)
+
+
+
+Partially discretizing Eq. (\ref{pde}) in its spatial component by simply replacing the Laplacian by its finite
+difference version we obtain the difference-differential equation
+\be \label{dde}
+	\dot{u}_n = (\gamma + i n) u_n  +  \varkappa ( u_{n-1} - 2 u_n + u_{n+1} )  +  f(t),
+\ee
+This one can be solved with the ansatz
+\be \label{ansatz2}
+	u_n(t) = e^{a t  +  b \sin t} e^{int}.
+\ee
+Inserting (\ref{ansatz2}) in (\ref{dde}) we get
+$$
+     a + b \cos t + i n \; = \; \gamma + i n + 2\varkappa\; ( \cos t - 1 ).
+$$
+By comparing all coefficients one obtains $a = \gamma - 2 \varkappa$ and $b = 2\varkappa$ and together with
+(\ref{ansatz2}) the full solution reads
+\be
+	u_n(t) = e^{(\gamma - 2 \varkappa) t  +  2\varkappa \sin t} e^{int}.
+\ee
+(TODO explain different to prev. solution)
+
+
+
+
+Simple linear models of cochlea in the inner ear are in essence a filterbank 
+
+\be \label{eq:discrete_laplacian}
+\begin{pmatrix}
+      1  & -1 & & & \multicolumn{2}{c}{\text{\kern0.5em\smash{\raisebox{-2ex}{\Huge 0}}}} \\
+      -1 &  2 & -1 \\
+         & & \dots & & \\
+	     & & -1 &  2 & -1 \\
+      \multicolumn{2}{c}{\text{\kern-1.5em\smash{\raisebox{0.25ex}{\Huge 0}}}} & & -1 & 1
+    \end{pmatrix}
+\ee
+
+
+The power of the method is .. to the fact that a high-dimensional system copmutes all channels
+simultanously due to high symmwetry
+
+
+
+%================================================================================================
+
+
+  \section{Reconstruciot}
+  \label{sec:reconst}
+ 
+- almost perfect reconstruction --> konverges fast
+- plot relative reconst error ( dev - mean )/ mean  oder so
+
+
+%================================================================================================
+
+
+  \section{Propperties}
+  \label{sec:propperties}
+ 
+- Gabor Projector
+- reproducing kernel
+- theoretically --> discrete version reliased here
+
+
+%================================================================================================
+
+
+  \section{Approximation Error}
+  \label{sec:error}
+
+There is an increasing dilation error with increasing center frequency. However, this dilation error
+can be controlled. First we need to quatify the error. There are different
+quantities in which one might be interested. The most important quantity is the Q-factor, the ratio
+between center frequency and band-width of the wavelet, which should remain constant under rescaling.
+
+
+
+
+%================================================================================================
+
+
+  \section{Speed Comparison}
+  \label{sec:speed}
+
+%  - compare scale-wise
+%  - compare for different freq-localisations
+%  - create wavelet from filter impulse-response
+%    -> direct computation via convolution
+%    -> computation via FFTW
+%  - comparison with  à trous, IEEE-versions, ... ? Perhaps based on arithmetic complexity
+%    here main point: localisation (doesn't matter with my wavelet)
+
+%================================================================================================
+
+
+  \section{Wavelet Properties}
+  \label{sec:properties}
+
+
+%================================================================================================
+
+
+\section{Conclusions}
+\label{sec:conclusions}
+
+
+%================================================================================================
+
+\appendices
+\section{Python Code}
+I present a small a python script that computes a Gabor approximation
+
+
+%================================================================================================
+
+\begin{thebibliography}{99}
+
+\bibitem{Gabor1946}
+  \textit{Theory of Communication},
+  J. IEEE, Vol. 93, No. 26. (November 1946), pp. 429-457
+
+\bibitem{Unser1994}
+  \textit{Fast Gabor-Like Windowed Fourier and Continuous Wavelet Transforms},
+  IEEE Signal Processing Lett., Vol. 1, No. 5. (May 1946), pp. 76-79
+
+\end{thebibliography}
+
+%================================================================================================
+%================================================================================================
+%================================================================================================
+
+
+
+
+% An example of a floating figure using the graphicx package.
+% Note that \label must occur AFTER (or within) \caption.
+% For figures, \caption should occur after the \includegraphics.
+% Note that IEEEtran v1.7 and later has special internal code that
+% is designed to preserve the operation of \label within \caption
+% even when the captionsoff option is in effect. However, because
+% of issues like this, it may be the safest practice to put all your
+% \label just after \caption rather than within \caption{}.
+%
+% Reminder: the "draftcls" or "draftclsnofoot", not "draft", class
+% option should be used if it is desired that the figures are to be
+% displayed while in draft mode.
+%
+%\begin{figure}[!t]
+%\centering
+%\includegraphics[width=2.5in]{myfigure}
+% where an .eps filename suffix will be assumed under latex, 
+% and a .pdf suffix will be assumed for pdflatex; or what has been declared
+% via \DeclareGraphicsExtensions.
+%\caption{Simulation Results}
+%\label{fig_sim}
+%\end{figure}
+
+% Note that IEEE typically puts floats only at the top, even when this
+% results in a large percentage of a column being occupied by floats.
+
+
+% An example of a double column floating figure using two subfigures.
+% (The subfig.sty package must be loaded for this to work.)
+% The subfigure \label commands are set within each subfloat command, the
+% \label for the overall figure must come after \caption.
+% \hfil must be used as a separator to get equal spacing.
+% The subfigure.sty package works much the same way, except \subfigure is
+% used instead of \subfloat.
+%
+%\begin{figure*}[!t]
+%\centerline{\subfloat[Case I]\includegraphics[width=2.5in]{subfigcase1}%
+%\label{fig_first_case}}
+%\hfil
+%\subfloat[Case II]{\includegraphics[width=2.5in]{subfigcase2}%
+%\label{fig_second_case}}}
+%\caption{Simulation results}
+%\label{fig_sim}
+%\end{figure*}
+%
+% Note that often IEEE papers with subfigures do not employ subfigure
+% captions (using the optional argument to \subfloat), but instead will
+% reference/describe all of them (a), (b), etc., within the main caption.
+
+
+% An example of a floating table. Note that, for IEEE style tables, the 
+% \caption command should come BEFORE the table. Table text will default to
+% \footnotesize as IEEE normally uses this smaller font for tables.
+% The \label must come after \caption as always.
+%
+%\begin{table}[!t]
+%% increase table row spacing, adjust to taste
+%\renewcommand{\arraystretch}{1.3}
+% if using array.sty, it might be a good idea to tweak the value of
+% \extrarowheight as needed to properly center the text within the cells
+%\caption{An Example of a Table}
+%\label{table_example}
+%\centering
+%% Some packages, such as MDW tools, offer better commands for making tables
+%% than the plain LaTeX2e tabular which is used here.
+%\begin{tabular}{|c||c|}
+%\hline
+%One & Two\\
+%\hline
+%Three & Four\\
+%\hline
+%\end{tabular}
+%\end{table}
+
+
+% Note that IEEE does not put floats in the very first column - or typically
+% anywhere on the first page for that matter. Also, in-text middle ("here")
+% positioning is not used. Most IEEE journals use top floats exclusively.
+% Note that, LaTeX2e, unlike IEEE journals, places footnotes above bottom
+% floats. This can be corrected via the \fnbelowfloat command of the
+% stfloats package.
+
+
+
+
+
+% if have a single appendix:
+%\appendix[Proof of the Zonklar Equations]
+% or
+%\appendix  % for no appendix heading
+% do not use \section anymore after \appendix, only \section*
+% is possibly needed
+
+% use appendices with more than one appendix
+% then use \section to start each appendix
+% you must declare a \section before using any
+% \subsection or using \label (\appendices by itself
+% starts a section numbered zero.)
+%
+
+
+% trigger a \newpage just before the given reference
+% number - used to balance the columns on the last page
+% adjust value as needed - may need to be readjusted if
+% the document is modified later
+%\IEEEtriggeratref{8}
+% The "triggered" command can be changed if desired:
+%\IEEEtriggercmd{\enlargethispage{-5in}}
+
+% references section
+
+% can use a bibliography generated by BibTeX as a .bbl file
+% BibTeX documentation can be easily obtained at:
+% http://www.ctan.org/tex-archive/biblio/bibtex/contrib/doc/
+% The IEEEtran BibTeX style support page is at:
+% http://www.michaelshell.org/tex/ieeetran/bibtex/
+%\bibliographystyle{IEEEtran}
+% argument is your BibTeX string definitions and bibliography database(s)
+%\bibliography{IEEEabrv,../bib/paper}
+%
+% <OR> manually copy in the resultant .bbl file
+% set second argument of \begin to the number of references
+% (used to reserve space for the reference number labels box)
+
+
+
+\end{document}
+
+

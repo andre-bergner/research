@@ -1,0 +1,10 @@
+28 Jul 19:33    wlet_bank.empirical_.py
+ 4 Aug 23:44    gaborbrane_amplitude_responses.py
+ 7 Aug 09:16    inverse_of_periodic_inhom_bidiag.py
+16 Aug 22:38    transfer_fun.gnuplot.txt
+16 Aug 23:23    fastgabor.simple.bilinear_scaling.py
+16 Aug 23:29    scaling_one_pole.py                      test of a "warped"/rescaled one pole w/o bilinear but using the
+                                                         information about where the maximum of the trasfer function lies
+17 Aug 11:54    fastgabor.simple.py                      probably some small fixes
+20 Aug 09:33    fastgabor.simple.rescale.py              trying to apply scaled one pole to vector valued H(z)
+27 Okt 17:53    inverse_of_periodic_tridiag.py           problem of 
