@@ -196,7 +196,7 @@ with the homogenous solution
 We modify Eq. \ref{pde2} to scale the frequencies exponentially ($x \rightarrow e^x$) and also make
 the damping scale accordingly ($\gamma \rightarrow \partial_x e^x = e^x$).
 \be \label{wlet_adv_pde}
-    \rbox{\partial_t u = e^x (\gamma + i) u + \varkappa \partial_x u  +  f(t),}
+    \rbox{\partial_t u = e^x (\gamma + i + \varkappa\partial_x) u  +  f(t),}
 \ee
 
 The ansatz condition is that the solution must be scale invariant, that is
@@ -210,24 +210,24 @@ Substituting the ansatz and its derivatives
 \eea
 in Eq. \ref{wlet_adv_pde} we get
 \be
-   \phi^\prime e^x  =  e^x (\gamma + i) \phi + \varkappa \phi^\prime t e^x.
+   \phi^\prime e^x  =  e^x(\gamma + i)\phi + \varkappa\phi^\prime t e^{2x}.
 \ee
 Substituting $\tau = e^xt$ yields the ordinary differential equation
 \bea
-   \phi^\prime  &=&  (\gamma + i) \phi + \varkappa e^{-x}\tau \phi^\prime \\
-   \phi^\prime (1 - \varkappa e^{-x}\tau)  &=&  (\gamma + i) \phi
+   \phi^\prime  &=&  (\gamma + i) \phi + \varkappa\tau\phi^\prime \\
+   \phi^\prime (1 - \varkappa\tau)  &=&  (\gamma + i) \phi
 \eea
 which can be solved by separation of variables
 \be
-   \int\! \frac{d\phi}{\phi} \ =\  \int\!\! d\tau \; \frac{\gamma + i}{1 - \varkappa e^{-x}\tau}.
+   \int\! \frac{d\phi}{\phi} \ =\  \int\!\! d\tau \; \frac{\gamma + i}{1 - \varkappa\tau}.
 \ee
 The solution is
 \be
-   \ln \phi \ = \ c - (\gamma + i) \frac{1 - \varkappa e^{-x}\tau}{\varkappa e^{-x}}
+   \ln \phi \ = \ c - (\gamma + i) \frac{1 - \varkappa\tau}{\varkappa}
 \ee
 Substituting back $t$ and letting $c=0$ we have the homogenous solution for (\ref{wlet_adv_pde})
 \be \label{wlet_adv_solution}
-    \gbox{ u(x,t) \ = \ \exp\!\big(-\!\frac{\gamma+i}{\varkappa e^{-x}} \; ln(1-\varkappa t)\big) }
+    \gbox{ u(x,t) \ = \ \exp\!\big(-\!\frac{\gamma+i}{\varkappa} \; ln(1-\varkappa e^x t)\big) }
 \ee
 
 
