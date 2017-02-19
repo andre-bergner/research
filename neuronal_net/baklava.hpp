@@ -5,6 +5,7 @@
 #include <array>
 #include <memory>
 #include <cmath>
+#include <iostream>
 #include <experimental/any>
 
 namespace std { using namespace experimental; }
@@ -264,7 +265,7 @@ auto back_propagate( LayerRange const& layers, Span<const Value> input, Span<con
    std::vector<std::any> layer_derivatives(layers.size());
    
    // C++17: for (auto& [l,lo,dl] : zip(layers, layer_outputs, layer_derivatives) | rng::reverse)
-   auto it_lay_out = layer_outputs.rbegin();
+   auto it_lay_out = std::next(layer_outputs.rbegin());
    auto it_lay_der = layer_derivatives.rbegin();
    for (auto& l : layers | rng::reverse)
    {
@@ -342,10 +343,19 @@ public:
 
    bool has_nonlinear_derivative() const { return false; }
 
-   void multiply_backward_derivative(Span<T const> layer_in, Span<T const> pre_deriv, Span<T> out) const
+   void multiply_backward_derivative(Span<T const>, Span<T const> pre_deriv, Span<T> out) const
    {
-      //dott(weights, in, out);
+      dott(weights, pre_deriv, out);
    }
+
+   std::any parameter_derivative( Span<T const> layer_in, Span<T const> pre_deriv ) const
+   {
+      auto weight_deriv = outer( pre_deriv, layer_in ); 
+      assert( weight_deriv.col_size() == weights.col_size() );
+      assert( weight_deriv.row_size() == weights.row_size() );
+      return weight_deriv;
+   }
+
 };
 
 

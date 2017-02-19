@@ -4,6 +4,16 @@
 #include <cassert>
 
 
+// -------------------------------------------------------------------------------------------------
+//
+//  TODO
+//  • full matrix class
+//  • matrix view
+//  • cols/rows
+//  • ...
+
+
+
 
 template <typename Value>
 class matrix
@@ -54,6 +64,11 @@ public:
    decltype(auto) data() const { return data_.data(); }
    
    decltype(auto) size() const { return data_.size(); }
+
+   /* TODO
+   auto columns() -> range<"column"-vector>
+   auto rows()    -> range<"row"-vector>
+   */
 };
 
 
@@ -64,6 +79,8 @@ class Span
    std::size_t  size_;
 
 public:
+
+   using value_type = std::decay_t<Value>;
 
    Span( Value* d, std::size_t s ) : data_{d} , size_{s} {}
 
@@ -136,6 +153,8 @@ void dot( Matrix const& m, Vector1 const& a, Vector2& b )
 template <typename Matrix, typename Vector1, typename Vector2>
 void dott_add( Matrix const& m, Vector1 const& a, Vector2& b )
 {
+   assert(m.row_size() == a.size());
+   assert(m.col_size() == b.size());
    for ( size_t l = 0 ; l < m.col_size() ; ++l )
       for ( size_t k = 0 ; k < m.row_size() ; ++k )
          b[l] += m(k,l)*a[k];
@@ -176,7 +195,7 @@ void outer( Vector const& v, Vector const& u, Matrix& m )
 template <typename Vector>
 auto outer( Vector const& u, Vector const& v )
 {
-   matrix<typename Vector::value_type> m(v.size(),u.size());
+   matrix<typename Vector::value_type> m(u.size(),v.size());
    outer(u,v,m);
    return m;
 }

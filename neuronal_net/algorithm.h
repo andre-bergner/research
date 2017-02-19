@@ -1,4 +1,5 @@
 #pragma once
+
 #include <algorithm>
 #include <numeric>
 
@@ -68,6 +69,13 @@ namespace rng
    {
       return std::count_if( std::begin(r), std::end(r), std::forward<Func>(f) );
    }
+
+   template <typename Range, typename Init>
+   decltype(auto) accumulate( Range& r, Init&& init )
+   {
+      return std::accumulate( std::begin(r), std::end(r), std::forward<Init>(init) );
+   }
+
 
 /*
    template <typename Func, typename Value, typename... Ranges>
