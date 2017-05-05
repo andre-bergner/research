@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 from tensorflow.examples.tutorials.mnist import input_data
 
-n_epochs        = 30
+n_epochs        = 10
 mini_batch_size = 20
 eta             = 0.1
 
@@ -20,7 +20,7 @@ def make_loss( layer, expected ):
    return tf.reduce_sum(tf.square(layer - expected))
 
 
-def stochastic_gradient_descent(training_network, training_data, n_epochs=100, mini_batch_size=20):
+def stochastic_gradient_descent(training_network, training_data, n_epochs=10, mini_batch_size=20):
 
    sess = tf.Session()
    init = tf.global_variables_initializer()
@@ -28,16 +28,20 @@ def stochastic_gradient_descent(training_network, training_data, n_epochs=100, m
 
    n = len(training_data)
 
-   for epo in range(n_epochs):
+   for n_epoch in range(n_epochs):
 
       mini_batches = [ training_data[k:k+mini_batch_size] for k in range(0, n, mini_batch_size) ]
 
-      for mini_batch in mini_batches:
+      for n_batch, mini_batch in enumerate(mini_batches):
+
          for input, expected in mini_batch:
             sess.run(training_network, {net_input : input, net_expected : expected})
-         print("\rEpoch {0}/{1} complete".format(epo,n_epochs), end="", flush=True)
 
-      print("")
+         print( "\rEpoch {0}/{1}, {2:.0f}%   "
+              . format(n_epoch, n_epochs, 100.*float(n_batch)/len(mini_batches))
+              , end="", flush=True)
+
+   print("")
 
    return sess
 
@@ -45,6 +49,7 @@ def stochastic_gradient_descent(training_network, training_data, n_epochs=100, m
 
 # build network
 
+net_input = tf.placeholder(tf.float32, shape=[None,784])
 net_expected = tf.placeholder(tf.float32, shape=[10])
 
 layer1 = make_dense_layer( 784, 30, net_input )
@@ -60,7 +65,7 @@ mnist_train = np.array([ (np.matrix(x),n) for x,n in zip(mnist.train.images, mni
 
 grad_desc = tf.train.GradientDescentOptimizer(eta)
 net_training_setup = grad_desc.minimize(net_with_loss)
-sess = stochastic_gradient_descent(net_training_setup, mnist_train, n_epochs=20)
+sess = stochastic_gradient_descent(net_training_setup, mnist_train, n_epochs=10)
 
 # test the trained network on training data
 
