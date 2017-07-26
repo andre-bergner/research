@@ -8,40 +8,12 @@
 import theano as th
 import numpy as np
 import timer
+import sgd
 from pylab import *
 
 n_epochs        = 3
 mini_batch_size = 20
 eta             = 0.1
-
-
-def stochastic_gradient_descent(minimizer, training_data, n_epochs=10, mini_batch_size=20):
-
-   n = len(training_data)
-
-   losses = []
-
-   for n_epoch in range(n_epochs):
-
-      np.random.shuffle(training_data)
-      mini_batches = [ training_data[k:k+mini_batch_size] for k in range(0, n, mini_batch_size) ]
-
-      for n_batch, mini_batch in enumerate(mini_batches):
-
-         avg_loss = 0.
-         for input, expected in mini_batch:
-            loss = minimizer(input, expected)
-            avg_loss += loss
-
-         losses.append(avg_loss / mini_batch_size)
-
-         print( "\rEpoch {0}/{1}, {2:.0f}%   "
-              . format(n_epoch+1, n_epochs, 100.*float(n_batch)/len(mini_batches))
-              , end="", flush=True)
-
-   print("")
-
-   return losses
 
 
 def farray(a):
@@ -84,7 +56,6 @@ net_with_loss = ((net_expected - net_output)**2).sum()
 net_with_loss_grad = th.grad(net_with_loss, [W1,b1,W2,b2])
 
 net_f = th.function([net_input, W1, b1, W2, b2], net_output)
-#net_with_loss_f = th.function([net_input, net_expected, W1, b1, W2, b2], net_with_loss)
 net_with_loss_grad_f = th.function( [net_input, net_expected, W1, b1, W2, b2]
                                   , [*net_with_loss_grad, net_with_loss] );
 
@@ -110,7 +81,7 @@ def minimize_loss(input, expected, eta=.5):
    return loss
 
 with timer.Timer() as t:
-   losses = stochastic_gradient_descent(minimize_loss, training_data, n_epochs, mini_batch_size)
+   losses = sgd.stochastic_gradient_descent(minimize_loss, training_data, n_epochs, mini_batch_size)
 
 correct_results = [ np.argmax(num) == np.argmax(net_f(img,*coeffs)) for img, num in mnist_valid ]
 print("correct results: {0:.2f} %".format( 100. * float(np.count_nonzero(correct_results)) / len(correct_results) ) )
