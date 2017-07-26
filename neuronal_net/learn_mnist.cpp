@@ -1,3 +1,4 @@
+// c++ -std=c++14 learn_mnist.cpp -I ../libs/ -I ../../../libraries/3rdparty/jeayeson/include/
 #include <iostream>
 
 #include "neural_net.h"
@@ -54,9 +55,15 @@ int main()
 
 
 
-   size_t n_epochs = 30;
+   //size_t n_epochs = 30;
+   // size_t mini_batch_size = 10;
+   // float eta = 3.f;
+   size_t n_epochs = 2;
+   size_t mini_batch_size = 20;
+   float eta = 0.1f;
 
-   NeuralNetwork  net({ img_size, 30, 20, 10 });
+   //NeuralNetwork  net({ img_size, 30, 20, 10 });
+   NeuralNetwork  net({ img_size, 30, 10 });
 
    auto print_cost = [s = std::ofstream("cost.txt"), &net, &training_data]() mutable
    {
@@ -76,7 +83,7 @@ int main()
    {
       print::RunningWheel wheel;
       prog_bar(0);
-      stochastic_gradien_descent(net, training_data, {n_epochs, 10, 3., prog});
+      stochastic_gradien_descent(net, training_data, {n_epochs, mini_batch_size, eta, prog});
    }
    std::cout << std::endl;
    

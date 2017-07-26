@@ -63,6 +63,10 @@ dy/dW3 = dl3/dW3 * dy/dl3             | l3 = W3×l2 + b3  →  dl3/dW3 = l2
 * flowness
 * flowron
 * flower++
+* flux, neuro-flux, tensor-flux, delta-flux (differential)
+* flukz
+* panta rhei
+
 
 
 ## EDSL to describe architecture

@@ -282,7 +282,7 @@ public:
 
 struct sgd_params
 {
-   size_t n_epochs        = 100;
+   size_t n_epochs        = 10;
    size_t mini_batch_size = 20;
    float  eta             = 0.1f;
    std::function<void(size_t)>  progress = [](size_t){};
