@@ -47,7 +47,7 @@ sess.run(init)
 grad_desc = tf.train.GradientDescentOptimizer(eta)
 training_network = grad_desc.minimize(net_with_loss)
 
-def minimize_loss(input, expected, eta=.5):
+def minimize_loss(input, expected, eta=eta):
    _,loss = sess.run([training_network,net_with_loss], {net_input : input, net_expected : expected})
    return loss
 
