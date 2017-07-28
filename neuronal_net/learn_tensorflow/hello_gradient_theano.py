@@ -5,10 +5,11 @@ import timer
 x = th.tensor.dscalar()
 y = th.tensor.dscalar()
 a = th.tensor.dscalar()
+l = a*x
 
 err = 0.5 * (y-a*x)**2
 derr = th.tensor.grad(err, a)
-derr_f = th.function([x,y,a], [derr,a*x])
+derr_f = th.function([x,y,a], [derr,l])
 
 eta = 0.01
 a = 1.
