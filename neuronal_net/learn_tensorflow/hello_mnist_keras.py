@@ -59,13 +59,24 @@ test_data = reshape_mnist_data(test_data)
 
 
 class LossRecorder(keras.callbacks.Callback):
+   def __init__(self, model):
+      self.model = model
+
+   def _current_weights(self):
+      return [l.get_weights() for l in self.model.layers if len(l.get_weights()) > 0]
+
    def on_train_begin(self, logs={}):
       self.losses = []
+      self.grads = []
+      self.last_weights = self._current_weights()
 
    def on_batch_end(self, batch, logs={}):
       self.losses.append(logs.get('loss'))
+      new_weights = self._current_weights()
+      self.grads.append([ (w2[0]-w1[0]).mean() for w1,w2 in zip(self.last_weights, new_weights) ])
+      self.last_weights = new_weights
 
-loss_recorder = LossRecorder()
+loss_recorder = LossRecorder(model)
 
 with timer.Timer() as t:
    model.fit( training_data[0], training_data[1]
@@ -74,19 +85,20 @@ with timer.Timer() as t:
             , callbacks = [loss_recorder]
             )
 
-"""
-def minimize_loss(input, expected, eta=.5):
-   loss = model.train_on_batch(input, expected)
-   return np.asscalar(loss)
-
-with timer.Timer() as t:
-   losses = sgd.stochastic_gradient_descent(minimize_loss, training_data, n_epochs, mini_batch_size)
-"""
-
 
 correct_results = [ np.argmax(num) == np.argmax(model.predict(img)) for img, num in zip(mnist_valid[0],mnist_valid[1]) ]
-#correct_results = [ np.argmax(num) == np.argmax(model.predict(img)) for img, num in mnist_valid ]
 print("correct results: {0:.2f} %".format( 100. * float(np.count_nonzero(correct_results)) / len(correct_results) ) )
 
-losses = np.array(loss_recorder.losses)
-plot(losses)
+
+
+figure()
+
+subplot(211)
+title("Losses")
+semilogy(np.array(loss_recorder.losses),'k')
+
+subplot(212)
+title("∆weights")
+semilogy(abs(np.array(loss_recorder.grads)))
+
+
