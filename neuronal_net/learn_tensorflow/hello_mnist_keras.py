@@ -14,6 +14,8 @@ n_epochs        = 3
 mini_batch_size = 20
 eta             = 0.1
 
+keras.backend.set_image_dim_ordering('th')
+
 def farray(a):
    return np.array(a,dtype=np.float32)
 
@@ -34,16 +36,36 @@ def reshape_mnist_data( data ):
       d = np.zeros(10); d[n]=1; return d;
    #return [ (farray(x),farray(dirac(n))) for x,n in zip(data[0],data[1]) ]
    return np.matrix(data[0]), np.matrix([ dirac(n) for n in data[1] ])
-   #return [ (np.matrix(x),np.matrix(dirac(n))) for x,n in zip(data[0],data[1]) ]
 
 
-# build network
+def make_dense_model():
 
-model = kemod.Sequential()
-model.add(kelay.Dense(units=30, input_dim=784))
-model.add(kelay.Activation('sigmoid'))
-model.add(kelay.Dense(units=10))
-model.add(kelay.Activation('sigmoid'))
+   model = kemod.Sequential()
+   model.add(kelay.Dense(units=30, input_dim=784))
+   model.add(kelay.Activation('sigmoid'))
+   model.add(kelay.Dense(units=10))
+   model.add(kelay.Activation('sigmoid'))
+
+   return model
+
+
+def make_conv_model():
+
+   model = kemod.Sequential()
+   model.add(kelay.Reshape((1,28,28), input_shape=(784,)))
+   model.add(kelay.Conv2D(16, kernel_size=(5,5)))
+   model.add(kelay.Activation('relu'))
+   model.add(kelay.Conv2D(8, kernel_size=(3,3)))
+   model.add(kelay.Activation('relu'))
+   model.add(kelay.Flatten())
+   model.add(kelay.Dense(10))
+   model.add(kelay.Activation('softmax'))
+
+   return model
+
+
+model = make_conv_model()
+
 
 #model.compile(loss='categorical_crossentropy', optimizer='sgd')
 #model.compile(loss='mean_squared_error', optimizer='sgd')
