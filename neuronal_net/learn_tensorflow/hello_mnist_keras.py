@@ -54,8 +54,11 @@ def make_conv_model():
    model = kemod.Sequential()
    model.add(kelay.Reshape((1,28,28), input_shape=(784,)))
    model.add(kelay.Conv2D(16, kernel_size=(5,5)))
+   model.add(kelay.MaxPooling2D(pool_size=(2,2)))
+   model.add(kelay.Dropout(0.3))
    model.add(kelay.Activation('relu'))
-   model.add(kelay.Conv2D(8, kernel_size=(3,3)))
+   model.add(kelay.Conv2D(10, kernel_size=(3,3)))
+   model.add(kelay.Dropout(0.4))
    model.add(kelay.Activation('relu'))
    model.add(kelay.Flatten())
    model.add(kelay.Dense(10))
@@ -64,6 +67,7 @@ def make_conv_model():
    return model
 
 
+#model = make_dense_model()
 model = make_conv_model()
 
 
@@ -71,6 +75,7 @@ model = make_conv_model()
 #model.compile(loss='mean_squared_error', optimizer='sgd')
 #model.compile(loss='mean_squared_error', optimizer=keras.optimizers.SGD(lr=0.5,momentum=0.2,decay=0.01))
 model.compile(loss='mean_squared_error', optimizer=keras.optimizers.SGD(lr=1.0))
+#model.compile(loss='categorical_crossentropy', optimizer=keras.optimizers.RMSprop(), metrics=['accuracy'])
 
 # load data
 
@@ -123,4 +128,26 @@ subplot(212)
 title("∆weights")
 semilogy(abs(np.array(loss_recorder.grads)))
 
+
+import mnist_gui
+
+class Predictor:
+
+   def __init__(self, img, bar_ax, txt):
+      self.img = img
+      self.bar_ax = bar_ax
+      self.txt = txt
+
+   def predict(self):
+      distribution = model.predict(matrix(self.img.array.flatten()))
+      most_likely = np.argmax(distribution)
+      self.bar_ax.clear()
+      self.bar_ax.bar(arange(10), distribution.T)
+      self.bar_ax.xaxis.set_ticks(np.arange(10)+.4)
+      self.bar_ax.xaxis.set_ticklabels(np.arange(10))
+      self.txt.set_text(most_likely)
+      # print(most_likely)
+
+predictor = Predictor(mnist_gui.draw_img, mnist_gui.bar_ax, mnist_gui.txt)
+mnist_gui.btn_predict.on_clicked(lambda _: predictor.predict())
 
