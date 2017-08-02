@@ -1,12 +1,3 @@
-# TODO
-# * non-verbose model.fit or better: one global progress incl all epochs
-# * document insight: number of features must be small
-# * next steps:
-#   * learn postion for diff objects
-#   * learn diff objects at diff positions
-#      -->  two layers , 3 layers: stacked or 2 parallel + 1 final
-
-
 import os
 os.environ["KERAS_BACKEND"] = "theano"
 
@@ -14,21 +5,16 @@ import numpy as np
 import keras
 from keras import models as M
 from keras import layers as L
+import tools
 
 
 data_size = 300
 num_epochs = 500
+downsampling = 10
 
-def gaussian(pos,sigma=40,size=data_size):
-   return np.exp( -((np.arange(size) - pos) / sigma)**2 )
-
-def dirac(n,s=data_size):
-   d = np.zeros(s)
-   d[int(n)] = 1.
-   return d
-
-inputs = np.matrix([ gaussian(n) for n in np.linspace(0,data_size-1,300) ])
-features = np.matrix([ dirac(n/10,30) for n in np.linspace(0,data_size-1,300) ])
+nums = np.linspace(0,data_size-1,300)
+inputs = np.matrix([ tools.gaussian(n,data_size) for n in nums ])
+features = np.matrix([ tools.dirac(n/downsampling, data_size/downsampling) for n in nums ])
 
 
 model = M.Sequential()
@@ -37,10 +23,11 @@ model.add(L.Activation('sigmoid'))
 
 
 model.compile(loss='mean_squared_error', optimizer=keras.optimizers.SGD(lr=1.0))
-model.fit(inputs, features, epochs=num_epochs, batch_size=20)
+model.fit( inputs, features, epochs=num_epochs, batch_size=20
+         , verbose=0, callbacks=[tools.Logger(num_epochs)] )
 
-correct_results = [ np.argmax(num) == np.argmax(model.predict(img)) for img, num in zip(inputs,features) ]
-print("correct results: {0:.2f} %".format( 100. * float(np.count_nonzero(correct_results)) / len(correct_results) ) )
+tools.validate_model(model, inputs, features)
+
 
 import pylab as pl
 
