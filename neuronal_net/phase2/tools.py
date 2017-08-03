@@ -53,19 +53,16 @@ class LossRecorder(keras.callbacks.Callback):
 
 class Logger(keras.callbacks.Callback):
 
-   def __init__(self, num_epochs):
-      self.num_epochs = num_epochs
+   def __init__(self):
       self.bar_size = 30
 
    def on_epoch_begin(self, epoch, logs={}):
-      #print( "\rEpoch {0}/{1}, {2:.0f}%   "
-      #     . format(j, n_epochs, 100.*float(n_batch)/len(mini_batches))
-      #     , end="", flush=True)
-      filled_bars = int(epoch * self.bar_size / self.num_epochs) + 1
+      num_epochs = self.params['epochs']
+      filled_bars = int(epoch * self.bar_size / num_epochs) + 1
       nonfilled_bars = self.bar_size - filled_bars
       print( '\r', end='' )
       print( 'training: [' + filled_bars*'●' + nonfilled_bars*' ' + ']  ', end='' )
-      print( 'Epoch {0}/{1}'. format(epoch+1, self.num_epochs), end='')
+      print( 'Epoch {0}/{1}'. format(epoch+1, num_epochs), end='')
       print( '', end='', flush=True )
 
    def on_train_end(self, logs={}):

@@ -24,7 +24,7 @@ model.add(L.Activation('sigmoid'))
 
 model.compile(loss='mean_squared_error', optimizer=keras.optimizers.SGD(lr=1.0))
 model.fit( inputs, features, epochs=num_epochs, batch_size=20
-         , verbose=0, callbacks=[tools.Logger(num_epochs)] )
+         , verbose=0, callbacks=[tools.Logger()] )
 
 tools.validate_model(model, inputs, features)
 
