@@ -1,3 +1,10 @@
+# TODO 
+# * predict outout probability distribution instead of single value
+#   → use more features per layer
+#   → cut before final layer to have more inputs and add dense layer
+#   → use resiudal connections from previous layers (concat)
+#   → visualize probability distribution over time
+
 import os
 os.environ['KERAS_BACKEND'] = 'theano'
 
