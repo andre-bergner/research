@@ -21,10 +21,10 @@ model = M.Sequential()
 model.add(L.Dense(units=30, input_dim=data_size))
 model.add(L.Activation('sigmoid'))
 
-
+loss_recorder = tools.LossRecorder()
 model.compile(loss='mean_squared_error', optimizer=keras.optimizers.SGD(lr=1.0))
 model.fit( inputs, features, epochs=num_epochs, batch_size=20
-         , verbose=0, callbacks=[tools.Logger()] )
+         , verbose=0, callbacks=[tools.Logger(), loss_recorder] )
 
 tools.validate_model(model, inputs, features)
 

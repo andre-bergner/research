@@ -31,9 +31,6 @@ def validate_model(model, inputs, features):
 
 class LossRecorder(keras.callbacks.Callback):
 
-   def __init__(self, model):
-      self.model = model
-
    def _current_weights(self):
       return [l.get_weights() for l in self.model.layers if len(l.get_weights()) > 0]
 

@@ -1,3 +1,6 @@
+# TODO
+# gradient update must be normalized by batch size
+
 import numpy
 
 def stochastic_gradient_descent(minimizer, training_data, n_epochs=10, mini_batch_size=20):

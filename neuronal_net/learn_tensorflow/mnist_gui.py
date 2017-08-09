@@ -18,7 +18,15 @@ class DrawableArray:
 
 
    def _set_pixel(self, x, y):
-      self.array[int(y), int(x)] = 1.
+      self.array[int(y)  , int(x)]   += 1.*(1. - self.array[int(y)  , int(x)]   )
+      self.array[int(y)-1, int(x)-1] += .04*(1. - self.array[int(y)-1, int(x)-1] )
+      self.array[int(y)-1, int(x)]   += .06*(1. - self.array[int(y)-1, int(x)]   )
+      self.array[int(y)-1, int(x)+1] += .04*(1. - self.array[int(y)-1, int(x)+1] )
+      self.array[int(y)  , int(x)+1] += .06*(1. - self.array[int(y)  , int(x)+1] )
+      self.array[int(y)+1, int(x)+1] += .04*(1. - self.array[int(y)+1, int(x)+1] )
+      self.array[int(y)+1, int(x)]   += .06*(1. - self.array[int(y)+1, int(x)]   )
+      self.array[int(y)+1, int(x)-1] += .04*(1. - self.array[int(y)+1, int(x)-1] )
+      self.array[int(y)  , int(x)-1] += .06*(1. - self.array[int(y)  , int(x)-1] )
 
    def _update_image(self):
       self.image.set_data(self.array)

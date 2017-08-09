@@ -1,5 +1,10 @@
 # TODO
 # * plot avg gradient per layer → analyze deeper fully connected network
+# * learn convolution matrix from data:
+#   * input: gaussian at position x    output: dirac at position x
+#   * input: rect at position x,y    output: dirac at position x,y
+#   * input: rect or circle at diff postion    output  [1,0] or [0,1]   →  should learn translation
+#   * train cube and hypercube at diff postions → analyze avg. node degree → emerge 6 vs 8 connections?
 # * use conv-layer
 # * cross-corr 
 # * regularization term
@@ -53,6 +58,7 @@ l2 = th.tensor.nnet.sigmoid(W2.dot(l1) + b2)
 net_output = l2
 
 net_with_loss = ((net_expected - net_output)**2).sum()
+#net_with_loss = -(net_expected*th.tensor.log(net_output) + (1.-net_expected)*th.tensor.log(1.-net_output)).sum()
 net_with_loss_grad = th.grad(net_with_loss, [W1,b1,W2,b2])
 
 net_f = th.function([net_input, W1, b1, W2, b2], net_output)
@@ -74,7 +80,7 @@ test_data = reshape_mnist_data(test_data)
 
 coeffs = [cW1, cb1, cW2, cb2]
 
-def minimize_loss(input, expected, eta=.5):
+def minimize_loss(input, expected, eta=eta):
    *grad, loss = net_with_loss_grad_f(input, expected, *coeffs)
    for c,d in zip(coeffs, grad):
       c -= eta*d

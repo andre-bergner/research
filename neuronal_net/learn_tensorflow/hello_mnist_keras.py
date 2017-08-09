@@ -68,7 +68,8 @@ def make_conv_model():
 
 
 #model = make_dense_model()
-model = make_conv_model()
+#model = make_conv_model()
+model = kemod.load_model("mnist_convnet")
 
 
 #model.compile(loss='categorical_crossentropy', optimizer='sgd')
@@ -104,7 +105,7 @@ class LossRecorder(keras.callbacks.Callback):
       self.last_weights = new_weights
 
 loss_recorder = LossRecorder(model)
-
+"""
 with timer.Timer() as t:
    model.fit( training_data[0], training_data[1]
             , epochs = n_epochs
@@ -127,6 +128,32 @@ semilogy(np.array(loss_recorder.losses),'k')
 subplot(212)
 title("∆weights")
 semilogy(abs(np.array(loss_recorder.grads)))
+"""
+
+
+# TODO
+# * deep dream numbers
+
+from keras import backend as K
+
+feat = K.placeholder(shape=(10,))
+loss = ((model.output-feat)**2).sum()
+dream_grad = K.gradients(loss, model.input)
+dream_grad_f = K.function([model.input, feat, K.learning_phase()], [dream_grad])
+
+#dream_grad_f([np.random.randn(784,1), [0,0,1,0,0,0,0,0,0,0], 0])
+
+def normalize(M):
+   scale = 1. / (np.max(M)-np.min(M))
+   ofs = np.min(M)
+   return (M - ofs) * scale
+
+dream = np.random.randn(784,1)
+dream_orig = dream.copy()
+for _ in range(100):
+   ddream = dream_grad_f([dream, [0,0,1,0,0,0,0,0,0,0], 0])[0]
+   dream = normalize(dream - 0.1*ddream)
+
 
 
 import mnist_gui
