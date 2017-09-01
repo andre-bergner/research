@@ -13,12 +13,13 @@ import keras
 import keras.models as M
 import keras.layers as L
 import keras.backend as B
+from keras import regularizers
 
 receptive_power = 9
 receptive_depth = 2**receptive_power
 
 def down_sample_conv():
-   return L.Conv1D(8, kernel_size=(2), strides=(2), activation='relu')
+   return L.Conv1D(8, kernel_size=(2), strides=(2), activation='relu', kernel_regularizer=regularizers.l2(0.001))
 
 wavenet = M.Sequential()
 wavenet.add(L.Reshape((receptive_depth,1), input_shape=(receptive_depth,)))
