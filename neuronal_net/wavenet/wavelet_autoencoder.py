@@ -17,11 +17,12 @@ import keras.backend as B
    concat
 """
 
-def make_haar_kernel(kernel):
-   return L.Conv1D(1, kernel_size=(2), strides=(2), weights=[np.array([[kernel]]).T, np.zeros(1)])
 
-def make_lo(): return make_haar_kernel([1,1])
-def make_hi(): return make_haar_kernel([1,-1])
+def make_analysis_node(kernel):
+   return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), weights=[np.array([[kernel]]).T, np.zeros(1)])
+
+def make_lo(): return make_analysis_node([1,1])
+def make_hi(): return make_analysis_node([1,-1])
 
 
 def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
@@ -30,25 +31,26 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
    input_len = input_len or 2**num_levels
    input = L.Input(shape=(input_len,))
    reshape = L.Reshape((input_len,1))
-   his = []
-   los = []
+   analysis_filters = []
    synth_slices = []     # the slices for the synthesis network
-   right_crop = 2**num_levels
+   synth_filters = []
+   right_crop = input_len # 2**num_levels
    left_crop = 0
    for _ in range(num_levels):
-      his.append(make_hi())
-      los.append(make_lo())
+      analysis_filters.append(( make_hi(), make_lo() ))
+      synth_filters.append(( make_hi(), make_lo() ))
       right_crop >>= 1
       synth_slices.append(L.Cropping1D([left_crop, right_crop]))
       left_crop += right_crop
    flatten = L.Flatten()
-   right_crop >>= 1
-   synth_slices.append(L.Cropping1D([left_crop, right_crop]))
+   synth_slices.append(L.Cropping1D([left_crop, 0]))
+
+   # TODO: wavelet weights must be tied!
 
    # --- connect nodes to graph ----------------------------
    out_layers = []
    current_level_in = reshape(input)
-   for hi,lo in zip(his,los):
+   for hi,lo in analysis_filters:
       h = hi(current_level_in)
       l = lo(current_level_in)
       current_level_in = l
@@ -63,20 +65,21 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
    #input_len *= 2
    encoder = L.Dense(units=input_len, weights=[np.eye(input_len), np.zeros(input_len)])
    decoder = L.Dense(units=input_len, weights=[np.eye(input_len), np.zeros(input_len)])
+   reshape2 = L.Reshape((input_len,1))
 
-   #decoder_v = decoder(encoder(analysis_layers_v))
-   #decoder_v = encoder(L.Flatten()(analysis_layers_v))
-   decoder_v = L.Reshape([input_len])(analysis_layers_v)
+   decoder_v = reshape(decoder(encoder(L.Flatten()(analysis_layers_v))))
 
-   #synth_slices_v = [l(decoder_v) for l in synth_slices] 
-   synth_slices_v = [l(analysis_layers_v) for l in synth_slices] 
+   synth_slices_v = [l(decoder_v) for l in synth_slices]
+
+   # for hi,lo in magic_zip( synth_filters, synth_slices_v ):
+   #    L.UpSampling1D(2)()
 
    # --- collect all observables ---------------------------
 
-   observables = [hi.output for hi in his]
-   observables.append(los[-1].output)
-   observables.append(analysis_layers_v)
-   observables.append(decoder_v)
+   observables = [hi.output for hi,_ in analysis_filters]
+   observables.append(analysis_filters[-1][1].output)
+   #observables.append(analysis_layers_v)
+   #observables.append(decoder_v)
    observables.extend(synth_slices_v)
 
    model_f = B.function([input], observables)
@@ -85,8 +88,11 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
 
 
-model_f = build_dyadic_grid(2,input_len=8)
-for x in model_f([ np.matrix([1,2,3,4,3,2,1,0]) ]):
+model_f = build_dyadic_grid(2,input_len=12)
+for x in model_f([ np.matrix([1,2,3,4,3,2,1,0,-1,-2,-1,0]) ]):
+#model_f = build_dyadic_grid(2,input_len=8)
+#for x in model_f([ np.matrix([1,2,3,4,3,2,1,0]) ]):
+#model_f = build_dyadic_grid(2,input_len=4)
 #for x in model_f([ np.matrix([1,2,0,-1]) ]):
    print(x)
 
