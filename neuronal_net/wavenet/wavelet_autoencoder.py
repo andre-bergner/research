@@ -8,6 +8,10 @@ import keras.layers as L
 import keras.backend as B
 
 """
+h: wavelet
+l: scaling
+g: synth wavelet
+k: synth scaling
       x
     /  \
    h1  l1
@@ -15,7 +19,40 @@ import keras.backend as B
    | h2 l2
    \ |  /
    concat
+   / |  \
+  | g2 k2
+  |  \ /
+  g1 k1
+  \  /
+   y
 """
+
+from keras.engine.topology import Layer
+from keras.engine import InputSpec
+
+class UpSampling1DZeros(Layer):
+
+   def __init__(self, upsampling_factor=2, **kwargs):
+      super(UpSampling1DZeros, self).__init__(**kwargs)
+      self.upsampling_factor = upsampling_factor
+      self.input_spec = InputSpec(ndim=3)
+
+   def compute_output_shape(self, input_shape):
+      size = self.upsampling_factor * input_shape[1] if input_shape[1] is not None else None
+      return (input_shape[0], size, input_shape[2])
+
+   def call(self, inputs):
+      input_shape = inputs.shape
+      input_shape[1] *= self.upsampling_factor
+      output = np.zeros(input_shape)
+      output[:,::self.upsampling_factor,:] = inputs[:,:,:]     # DOES NOT WORK
+      return output
+
+   def get_config(self):
+      config = {'size': self.size}
+      base_config = super(UpSampling1D, self).get_config()
+      return dict(list(base_config.items()) + list(config.items()))
+
 
 
 def make_analysis_node(kernel):
@@ -24,6 +61,12 @@ def make_analysis_node(kernel):
 def make_lo(): return make_analysis_node([1,1])
 def make_hi(): return make_analysis_node([1,-1])
 
+def make_synth_node(kernel):
+   return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', weights=[np.array([[kernel]]).T, np.zeros(1)])
+
+def make_lo_s(): return make_synth_node([1,1])
+def make_hi_s(): return make_synth_node([1,-1])
+
 
 def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
@@ -31,61 +74,60 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
    input_len = input_len or 2**num_levels
    input = L.Input(shape=(input_len,))
    reshape = L.Reshape((input_len,1))
-   analysis_filters = []
    synth_slices = []     # the slices for the synthesis network
-   synth_filters = []
-   right_crop = input_len # 2**num_levels
+   right_crop = input_len
    left_crop = 0
+   current_level_in = reshape(input)
+   out_layers = []
+   observables = []
    for _ in range(num_levels):
-      analysis_filters.append(( make_hi(), make_lo() ))
-      synth_filters.append(( make_hi(), make_lo() ))
+
+      # TODO: wavelet weights must be tied!
+      hi = make_hi()
+      lo = make_lo()
+      hi_v = hi(current_level_in)
+      lo_v = lo(current_level_in)
+      current_level_in = lo_v
+      out_layers.append(hi_v)
+      observables.append(hi.output)
+
       right_crop >>= 1
       synth_slices.append(L.Cropping1D([left_crop, right_crop]))
       left_crop += right_crop
+
+   out_layers.append(lo_v)
+   observables.append(lo.output)
+
    flatten = L.Flatten()
    synth_slices.append(L.Cropping1D([left_crop, 0]))
 
-   # TODO: wavelet weights must be tied!
-
-   # --- connect nodes to graph ----------------------------
-   out_layers = []
-   current_level_in = reshape(input)
-   for hi,lo in analysis_filters:
-      h = hi(current_level_in)
-      l = lo(current_level_in)
-      current_level_in = l
-      out_layers.append(h)
-   out_layers.append(l)
-
    analysis_layers_v = L.concatenate(out_layers, axis=1)
 
-   # TODO add encoder layers: analysis → encoder → synthesis
-   # L.Dense(units=encoder_size)
-   #encoder_matrix = B.variable(np.array([[],[]]))
-   #input_len *= 2
    encoder = L.Dense(units=input_len, weights=[np.eye(input_len), np.zeros(input_len)])
    decoder = L.Dense(units=input_len, weights=[np.eye(input_len), np.zeros(input_len)])
    reshape2 = L.Reshape((input_len,1))
 
-   decoder_v = reshape(decoder(encoder(L.Flatten()(analysis_layers_v))))
+   decoder_v = reshape2(decoder(encoder(L.Flatten()(analysis_layers_v))))
 
    synth_slices_v = [l(decoder_v) for l in synth_slices]
 
-   # for hi,lo in magic_zip( synth_filters, synth_slices_v ):
-   #    L.UpSampling1D(2)()
+   scaling_in = synth_slices_v.pop()
+   for _ in range(num_levels):
+      detail_in = synth_slices_v.pop()
+      observables.append(scaling_in)
+      observables.append(detail_in)
+      lo = make_lo_s()
+      hi = make_hi_s()
+      lo_v = lo(L.UpSampling1D(2)(scaling_in))
+      hi_v = hi(L.UpSampling1D(2)(detail_in))
+      level_synth_v = L.add([lo_v, hi_v])
+      scaling_in = level_synth_v
 
-   # --- collect all observables ---------------------------
-
-   observables = [hi.output for hi,_ in analysis_filters]
-   observables.append(analysis_filters[-1][1].output)
-   #observables.append(analysis_layers_v)
-   #observables.append(decoder_v)
    observables.extend(synth_slices_v)
 
    model_f = B.function([input], observables)
 
    return model_f
-
 
 
 model_f = build_dyadic_grid(2,input_len=12)
