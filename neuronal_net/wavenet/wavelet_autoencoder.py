@@ -27,33 +27,6 @@ k: synth scaling
    y
 """
 
-from keras.engine.topology import Layer
-from keras.engine import InputSpec
-
-class UpSampling1DZeros(Layer):
-
-   def __init__(self, upsampling_factor=2, **kwargs):
-      super(UpSampling1DZeros, self).__init__(**kwargs)
-      self.upsampling_factor = upsampling_factor
-      self.input_spec = InputSpec(ndim=3)
-
-   def compute_output_shape(self, input_shape):
-      size = self.upsampling_factor * input_shape[1] if input_shape[1] is not None else None
-      return (input_shape[0], size, input_shape[2])
-
-   def call(self, inputs):
-      input_shape = inputs.shape
-      input_shape[1] *= self.upsampling_factor
-      output = np.zeros(input_shape)
-      output[:,::self.upsampling_factor,:] = inputs[:,:,:]     # DOES NOT WORK
-      return output
-
-   def get_config(self):
-      config = {'size': self.size}
-      base_config = super(UpSampling1D, self).get_config()
-      return dict(list(base_config.items()) + list(config.items()))
-
-
 
 def make_analysis_node(kernel):
    return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), weights=[np.array([[kernel]]).T, np.zeros(1)])
@@ -123,20 +96,25 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
       level_synth_v = L.add([lo_v, hi_v])
       scaling_in = level_synth_v
 
-   observables.extend(synth_slices_v)
+   output = L.Flatten()(level_synth_v)
 
-   model_f = B.function([input], observables)
+   #return B.function([input], [output])
 
-   return model_f
+   #observables.append(level_synth_v)
+   #model_f = B.function([input], observables)
+   #return model_f
+
+   return M.Model(inputs=input, outputs=output)
 
 
-model_f = build_dyadic_grid(2,input_len=12)
-for x in model_f([ np.matrix([1,2,3,4,3,2,1,0,-1,-2,-1,0]) ]):
-#model_f = build_dyadic_grid(2,input_len=8)
-#for x in model_f([ np.matrix([1,2,3,4,3,2,1,0]) ]):
-#model_f = build_dyadic_grid(2,input_len=4)
-#for x in model_f([ np.matrix([1,2,0,-1]) ]):
-   print(x)
+
+
+model = build_dyadic_grid(2,input_len=12)
+model.compile(optimizer='sgd', loss='mean_absolute_error')
+data = np.array([[1,2,3,4,3,2,1,0,-1,-2,-1,0]])
+model.fit(data, data)
+
+
 
 """
 hi1_o, hi2_o, lo2_o, net_o, hi1_s, hi2_s, lo2_s = model_f([ np.matrix([1,2,3,4,3,2,1,0]) ])
