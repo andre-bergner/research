@@ -7,6 +7,8 @@ import keras.models as M
 import keras.layers as L
 import keras.backend as B
 
+import tools
+
 """
 h: wavelet
 l: scaling
@@ -29,13 +31,17 @@ k: synth scaling
 
 
 def make_analysis_node(kernel):
-   return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), weights=[np.array([[kernel]]).T, np.zeros(1)])
+   #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=True)
+   return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=False)
+   #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), weights=[np.array([[kernel]]).T, np.zeros(1)])
 
 def make_lo(): return make_analysis_node([1,1])
 def make_hi(): return make_analysis_node([1,-1])
 
 def make_synth_node(kernel):
-   return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', weights=[np.array([[kernel]]).T, np.zeros(1)])
+   #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=True)
+   return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=False)
+   #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', weights=[np.array([[kernel]]).T, np.zeros(1)])
 
 def make_lo_s(): return make_synth_node([1,1])
 def make_hi_s(): return make_synth_node([1,-1])
@@ -52,45 +58,50 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
    left_crop = 0
    current_level_in = reshape(input)
    out_layers = []
-   observables = []
+   #observables = []
+   hi = make_hi()    # these weights are shared
+   lo = make_lo()    # move into loop to have weights per layer
    for _ in range(num_levels):
 
+      #hi = make_hi()
+      #lo = make_lo()
       # TODO: wavelet weights must be tied!
-      hi = make_hi()
-      lo = make_lo()
       hi_v = hi(current_level_in)
       lo_v = lo(current_level_in)
       current_level_in = lo_v
       out_layers.append(hi_v)
-      observables.append(hi.output)
+      #observables.append(hi.output)
 
       right_crop >>= 1
       synth_slices.append(L.Cropping1D([left_crop, right_crop]))
       left_crop += right_crop
 
    out_layers.append(lo_v)
-   observables.append(lo.output)
+   #observables.append(lo.output)
 
    flatten = L.Flatten()
    synth_slices.append(L.Cropping1D([left_crop, 0]))
 
    analysis_layers_v = L.concatenate(out_layers, axis=1)
 
-   encoder = L.Dense(units=input_len, weights=[np.eye(input_len), np.zeros(input_len)])
-   decoder = L.Dense(units=input_len, weights=[np.eye(input_len), np.zeros(input_len)])
+   encoder = L.Dense(units=encoder_size)#, weights=[np.eye(input_len), np.zeros(input_len)])
+   decoder = L.Dense(units=input_len)#, weights=[np.eye(input_len), np.zeros(input_len)])
    reshape2 = L.Reshape((input_len,1))
 
    decoder_v = reshape2(decoder(encoder(L.Flatten()(analysis_layers_v))))
+   #decoder_v = analysis_layers_v
 
    synth_slices_v = [l(decoder_v) for l in synth_slices]
 
    scaling_in = synth_slices_v.pop()
+   lo = make_lo_s()
+   hi = make_hi_s()
    for _ in range(num_levels):
       detail_in = synth_slices_v.pop()
-      observables.append(scaling_in)
-      observables.append(detail_in)
-      lo = make_lo_s()
-      hi = make_hi_s()
+      #observables.append(scaling_in)
+      #observables.append(detail_in)
+      #lo = make_lo_s()
+      #hi = make_hi_s()
       lo_v = lo(L.UpSampling1D(2)(scaling_in))
       hi_v = hi(L.UpSampling1D(2)(detail_in))
       level_synth_v = L.add([lo_v, hi_v])
@@ -108,11 +119,43 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
 
 
+size = 32
 
-model = build_dyadic_grid(2,input_len=12)
+model = build_dyadic_grid(5,input_len=32,encoder_size=32)
 model.compile(optimizer='sgd', loss='mean_absolute_error')
-data = np.array([[1,2,3,4,3,2,1,0,-1,-2,-1,0]])
-model.fit(data, data)
+
+
+def make_test_signals(size, num_signals=200, num_modes=5):
+
+   def make_mode(damp, freq, phase):
+      time = np.arange(size)
+      return np.cos(phase + freq*time) * np.exp(damp*time)
+
+   signals = [
+      np.sum([
+         make_mode( -d, np.pi*f, np.pi*p )
+         for d,f,p in np.random.rand(num_modes,3)],
+         axis=0)
+      for _ in range(num_signals)
+   ]
+
+   return np.array(signals)
+
+loss_recorder = tools.LossRecorder()
+data = make_test_signals(size)
+model.fit(data, data, batch_size=20, epochs=300, verbose=0,
+   callbacks=[tools.Logger(),loss_recorder])
+
+
+from keras.utils import plot_model
+plot_model(model, to_file='wavelet_autoencoder.png')
+
+
+from pylab import *
+
+prediction = model.predict(data[0:1])
+plot(data[0])
+plot(prediction.T)
 
 
 
