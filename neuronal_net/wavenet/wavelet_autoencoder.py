@@ -49,7 +49,6 @@ def make_hi_s(): return make_synth_node([1,-1])
 
 def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
-   # --- create all operators (nodes) ----------------------
    input_len = input_len or 2**num_levels
    input = L.Input(shape=(input_len,))
    reshape = L.Reshape((input_len,1))
@@ -65,7 +64,6 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
       #hi = make_hi()
       #lo = make_lo()
-      # TODO: wavelet weights must be tied!
       hi_v = hi(current_level_in)
       lo_v = lo(current_level_in)
       current_level_in = lo_v
@@ -89,21 +87,21 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
    reshape2 = L.Reshape((input_len,1))
 
    decoder_v = reshape2(decoder(encoder(L.Flatten()(analysis_layers_v))))
-   #decoder_v = analysis_layers_v
+   #decoder_v = analysis_layers_v      # no en/de-coder
 
    synth_slices_v = [l(decoder_v) for l in synth_slices]
 
    scaling_in = synth_slices_v.pop()
-   lo = make_lo_s()
    hi = make_hi_s()
+   lo = make_lo_s()
    for _ in range(num_levels):
       detail_in = synth_slices_v.pop()
       #observables.append(scaling_in)
       #observables.append(detail_in)
-      #lo = make_lo_s()
       #hi = make_hi_s()
-      lo_v = lo(L.UpSampling1D(2)(scaling_in))
+      #lo = make_lo_s()
       hi_v = hi(L.UpSampling1D(2)(detail_in))
+      lo_v = lo(L.UpSampling1D(2)(scaling_in))
       level_synth_v = L.add([lo_v, hi_v])
       scaling_in = level_synth_v
 
@@ -121,7 +119,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
 size = 32
 
-model = build_dyadic_grid(5,input_len=32,encoder_size=32)
+model = build_dyadic_grid(5, input_len=size, encoder_size=32)
 model.compile(optimizer='sgd', loss='mean_absolute_error')
 
 
