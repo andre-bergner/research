@@ -6,6 +6,7 @@ import keras
 import keras.models as M
 import keras.layers as L
 import keras.backend as B
+import keras.regularizers as regularizers
 
 import tools
 
@@ -30,8 +31,52 @@ k: synth scaling
 """
 
 
+from keras.engine.topology import Layer
+from keras.engine import InputSpec
+from theano import tensor as TT
+
+
+def up_sampling_2d(x, factor):
+    # inspired by temporal_padding in theano_backend.py
+    input_shape = x.shape
+    output_shape = (input_shape[0], factor*input_shape[1], input_shape[2])
+    output = TT.zeros(output_shape)
+
+    result = TT.set_subtensor(output[:, ::factor, :], x)
+    if hasattr(x, '_keras_shape'):
+        result._keras_shape = (x._keras_shape[0], factor*x._keras_shape[1], x._keras_shape[2])
+    return result
+
+
+
+
+class UpSampling1DZeros(Layer):
+
+   def __init__(self, upsampling_factor=2, **kwargs):
+      super(UpSampling1DZeros, self).__init__(**kwargs)
+      self.upsampling_factor = upsampling_factor
+      self.input_spec = InputSpec(ndim=3)
+
+   def compute_output_shape(self, input_shape):
+      size = self.upsampling_factor * input_shape[1] if input_shape[1] is not None else None
+      return (input_shape[0], size, input_shape[2])
+
+   def call(self, inputs):
+      return up_sampling_2d(inputs, self.upsampling_factor)
+
+   def get_config(self):
+      config = {'size': self.size}
+      base_config = super(UpSampling1D, self).get_config()
+      return dict(list(base_config.items()) + list(config.items()))
+
+
+
+
+
+
+
 def make_analysis_node(kernel):
-   #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=True)
+   #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=False, activation='tanh')
    return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=False)
    #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), weights=[np.array([[kernel]]).T, np.zeros(1)])
 
@@ -39,7 +84,7 @@ def make_lo(): return make_analysis_node([1,1])
 def make_hi(): return make_analysis_node([1,-1])
 
 def make_synth_node(kernel):
-   #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=True)
+   #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=False, activation='tanh')
    return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=False)
    #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', weights=[np.array([[kernel]]).T, np.zeros(1)])
 
@@ -82,12 +127,14 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
    analysis_layers_v = L.concatenate(out_layers, axis=1)
 
-   encoder = L.Dense(units=encoder_size)#, weights=[np.eye(input_len), np.zeros(input_len)])
-   decoder = L.Dense(units=input_len)#, weights=[np.eye(input_len), np.zeros(input_len)])
+   activation = None
+   #activation = 'tanh'
+   encoder = L.Dense(units=encoder_size, activation=activation, activity_regularizer=regularizers.l1(10e-5))#, weights=[np.eye(input_len), np.zeros(input_len)])
+   decoder = L.Dense(units=input_len, activation=activation, activity_regularizer=regularizers.l1(10e-5))#, weights=[np.eye(input_len), np.zeros(input_len)])
    reshape2 = L.Reshape((input_len,1))
 
-   decoder_v = reshape2(decoder(encoder(L.Flatten()(analysis_layers_v))))
-   #decoder_v = analysis_layers_v      # no en/de-coder
+   #decoder_v = reshape2(decoder(encoder(L.Flatten()(analysis_layers_v))))
+   decoder_v = analysis_layers_v      # no en/de-coder
 
    synth_slices_v = [l(decoder_v) for l in synth_slices]
 
@@ -100,8 +147,10 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
       #observables.append(detail_in)
       #hi = make_hi_s()
       #lo = make_lo_s()
-      hi_v = hi(L.UpSampling1D(2)(detail_in))
-      lo_v = lo(L.UpSampling1D(2)(scaling_in))
+      # hi_v = hi(L.UpSampling1D(2)(detail_in))
+      # lo_v = lo(L.UpSampling1D(2)(scaling_in))
+      hi_v = hi(UpSampling1DZeros(2)(detail_in))
+      lo_v = lo(UpSampling1DZeros(2)(scaling_in))
       level_synth_v = L.add([lo_v, hi_v])
       scaling_in = level_synth_v
 
@@ -119,7 +168,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
 size = 32
 
-model = build_dyadic_grid(5, input_len=size, encoder_size=32)
+model = build_dyadic_grid(5, input_len=size, encoder_size=size)
 model.compile(optimizer='sgd', loss='mean_absolute_error')
 
 
@@ -131,17 +180,17 @@ def make_test_signals(size, num_signals=200, num_modes=5):
 
    signals = [
       np.sum([
-         make_mode( -d, np.pi*f, np.pi*p )
+         make_mode( -0.1*d, np.pi*f, np.pi*p )
          for d,f,p in np.random.rand(num_modes,3)],
          axis=0)
       for _ in range(num_signals)
    ]
 
-   return np.array(signals)
+   return np.array(signals) / np.max(np.abs(signals))
 
 loss_recorder = tools.LossRecorder()
 data = make_test_signals(size)
-model.fit(data, data, batch_size=20, epochs=300, verbose=0,
+model.fit(data, data, batch_size=20, epochs=500, verbose=0,
    callbacks=[tools.Logger(),loss_recorder])
 
 
@@ -151,10 +200,11 @@ plot_model(model, to_file='wavelet_autoencoder.png')
 
 from pylab import *
 
-prediction = model.predict(data[0:1])
-plot(data[0])
-plot(prediction.T)
+def plot_input_vs_approx(n, data=data):
+   plot(data[n], 'k')
+   plot(model.predict(data[n:n+1]).T, 'r')
 
+plot_input_vs_approx(0)
 
 
 """
