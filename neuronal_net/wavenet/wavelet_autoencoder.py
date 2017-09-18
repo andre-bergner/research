@@ -31,13 +31,10 @@ k: synth scaling
 """
 
 
-from keras.engine.topology import Layer
-from keras.engine import InputSpec
+
 from theano import tensor as TT
 
-
-def up_sampling_2d(x, factor):
-    # inspired by temporal_padding in theano_backend.py
+def up_sampling_1d(x, factor):
     input_shape = x.shape
     output_shape = (input_shape[0], factor*input_shape[1], input_shape[2])
     output = TT.zeros(output_shape)
@@ -49,6 +46,8 @@ def up_sampling_2d(x, factor):
 
 
 
+from keras.engine.topology import Layer
+from keras.engine import InputSpec
 
 class UpSampling1DZeros(Layer):
 
@@ -62,7 +61,10 @@ class UpSampling1DZeros(Layer):
       return (input_shape[0], size, input_shape[2])
 
    def call(self, inputs):
-      return up_sampling_2d(inputs, self.upsampling_factor)
+      return up_sampling_1d(inputs, self.upsampling_factor)
+      #shape = B.shape(inputs)
+      #in_t = B.transpose(inputs)
+      #return B.reshape(B.transpose(B.stack([in_t, B.zeros_like(in_t)])), [-1,2*shape[1],shape[2]])
 
    def get_config(self):
       config = {'size': self.size}
@@ -129,12 +131,15 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
    activation = None
    #activation = 'tanh'
-   encoder = L.Dense(units=encoder_size, activation=activation, activity_regularizer=regularizers.l1(10e-5))#, weights=[np.eye(input_len), np.zeros(input_len)])
-   decoder = L.Dense(units=input_len, activation=activation, activity_regularizer=regularizers.l1(10e-5))#, weights=[np.eye(input_len), np.zeros(input_len)])
+   encoder = L.Dense(units=encoder_size, activation=activation, kernel_regularizer=regularizers.l1(10e-4))#, weights=[np.eye(input_len), np.zeros(input_len)])
+   decoder = L.Dense(units=input_len, activation=activation, kernel_regularizer=regularizers.l1(10e-4))#, weights=[np.eye(input_len), np.zeros(input_len)])
+   #encoder = L.Dense(units=encoder_size, activation=activation)
+   #decoder = L.Dense(units=input_len, activation=activation)
    reshape2 = L.Reshape((input_len,1))
+   reshape2.activity_regularizer = keras.regularizers.l1(l=0.0001)
 
-   #decoder_v = reshape2(decoder(encoder(L.Flatten()(analysis_layers_v))))
-   decoder_v = analysis_layers_v      # no en/de-coder
+   decoder_v = reshape2(decoder(encoder(L.Flatten()(analysis_layers_v))))
+   #decoder_v = analysis_layers_v      # no en/de-coder
 
    synth_slices_v = [l(decoder_v) for l in synth_slices]
 
@@ -162,14 +167,16 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
    #model_f = B.function([input], observables)
    #return model_f
 
-   return M.Model(inputs=input, outputs=output)
+   model = M.Model(inputs=input, outputs=output)
+   #model.layers[4].activity_regularizer = keras.regularizers.l1(l=0.001)
+   return model
 
 
 
 size = 32
 
-model = build_dyadic_grid(5, input_len=size, encoder_size=size)
-model.compile(optimizer='sgd', loss='mean_absolute_error')
+model = build_dyadic_grid(5, input_len=size, encoder_size=30)
+model.compile(optimizer=keras.optimizers.SGD(lr=1), loss='mean_absolute_error')
 
 
 def make_test_signals(size, num_signals=200, num_modes=5):
@@ -204,18 +211,18 @@ def plot_input_vs_approx(n, data=data):
    plot(data[n], 'k')
    plot(model.predict(data[n:n+1]).T, 'r')
 
+def plot_all_diffs(ns=range(len(data))):
+   figure()
+   for n in ns:
+      y = model.predict(data[n:n+1])[0]
+      plot(data[n]-y, 'k', alpha=0.3)
+
+for w in model.get_weights():
+   print(w)
+
 plot_input_vs_approx(0)
 
+# plotting code en/decoder matrix
+# imshow(abs(dot(model.get_weights()[2],model.get_weights()[4])))
 
-"""
-hi1_o, hi2_o, lo2_o, net_o, hi1_s, hi2_s, lo2_s = model_f([ np.matrix([1,2,3,4,3,2,1,0]) ])
 
-print( "hi1: {}".format(hi1_o.flatten()) )
-print( "hi2: {}".format(hi2_o.flatten()) )
-print( "lo2: {}".format(lo2_o.flatten()) )
-#print( "all: {}".format(net_o.T.flatten()) )
-print( "pyramids:\n{}".format(net_o[:,:,0]) )
-print( "hi1 syn: {}".format(hi1_s.flatten()) )
-print( "hi2 syn: {}".format(hi2_s.flatten()) )
-print( "lo2 syn: {}".format(lo2_s.flatten()) )
-"""
