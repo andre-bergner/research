@@ -94,6 +94,62 @@ def make_lo_s(): return make_synth_node([1,1])
 def make_hi_s(): return make_synth_node([1,-1])
 
 
+class CascadeFactory:
+
+   def __init__(self, scaling_factory, wavelet_factory, shared=True):
+      if shared:
+         scaling_function = scaling_factory();
+         wavelet_function = wavelet_factory();
+         self.scaling_factory = lambda: scaling_function
+         self.wavelet_factory = lambda: wavelet_function
+      else:
+         self.scaling_factory = scaling_factory
+         self.wavelet_factory = wavelet_factory
+
+   def scaling(self):
+      return self.scaling_factory()
+
+   def wavelet(self):
+      return self.wavelet_factory()
+
+
+
+
+def build_codercore(input_len, encoder_size):
+
+   activation = None
+   #activation = 'tanh'
+   #encoder = L.Dense(units=encoder_size, activation=activation, kernel_regularizer=regularizers.l1(10e-4))#, weights=[np.eye(input_len), np.zeros(input_len)])
+   #decoder = L.Dense(units=input_len, activation=activation, kernel_regularizer=regularizers.l1(10e-4))#, weights=[np.eye(input_len), np.zeros(input_len)])
+   encoder = L.Dense(units=encoder_size, activation=activation, activity_regularizer=regularizers.l1(10e-4))#, weights=[np.eye(input_len), np.zeros(input_len)])
+   decoder = L.Dense(units=input_len, activation=activation)
+   #encoder = L.Dense(units=encoder_size, activation=activation)
+   #decoder = L.Dense(units=input_len, activation=activation)
+   reshape2 = L.Reshape((input_len,1))
+   reshape2.activity_regularizer = keras.regularizers.l1(l=0.0001)
+
+   def chain(input):
+      return reshape2(decoder(encoder(L.Flatten()(input))))
+
+   return chain
+
+
+
+
+def build_codercore2(input_len, encoder_size):
+
+   activation = None
+   encoder = L.Dense(units=encoder_size, activation=activation)#, weights=[np.eye(input_len), np.zeros(input_len)])
+   decoder = L.Dense(units=input_len, activation=activation)
+   reshape2 = L.Reshape((input_len,1))
+   #reshape2.activity_regularizer = keras.regularizers.l1(l=0.0001)
+
+   def chain(input):
+      return reshape2(decoder(encoder(L.Flatten()(input))))
+
+   return chain
+
+
 def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
    input_len = input_len or 2**num_levels
@@ -105,14 +161,11 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
    current_level_in = reshape(input)
    out_layers = []
    #observables = []
-   hi = make_hi()    # these weights are shared
-   lo = make_lo()    # move into loop to have weights per layer
+   casc = CascadeFactory(make_lo, make_hi, shared=True)
    for _ in range(num_levels):
 
-      #hi = make_hi()
-      #lo = make_lo()
-      hi_v = hi(current_level_in)
-      lo_v = lo(current_level_in)
+      lo_v = casc.scaling()(current_level_in)
+      hi_v = casc.wavelet()(current_level_in)
       current_level_in = lo_v
       out_layers.append(hi_v)
       #observables.append(hi.output)
@@ -122,40 +175,25 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
       left_crop += right_crop
 
    out_layers.append(lo_v)
-   #observables.append(lo.output)
-
-   flatten = L.Flatten()
    synth_slices.append(L.Cropping1D([left_crop, 0]))
+   #observables.append(lo.output)
 
    analysis_layers_v = L.concatenate(out_layers, axis=1)
 
-   activation = None
-   #activation = 'tanh'
-   encoder = L.Dense(units=encoder_size, activation=activation, kernel_regularizer=regularizers.l1(10e-4))#, weights=[np.eye(input_len), np.zeros(input_len)])
-   decoder = L.Dense(units=input_len, activation=activation, kernel_regularizer=regularizers.l1(10e-4))#, weights=[np.eye(input_len), np.zeros(input_len)])
-   #encoder = L.Dense(units=encoder_size, activation=activation)
-   #decoder = L.Dense(units=input_len, activation=activation)
-   reshape2 = L.Reshape((input_len,1))
-   reshape2.activity_regularizer = keras.regularizers.l1(l=0.0001)
-
-   decoder_v = reshape2(decoder(encoder(L.Flatten()(analysis_layers_v))))
+   coder = build_codercore2(input_len, encoder_size)
+   decoder_v = coder(analysis_layers_v)
    #decoder_v = analysis_layers_v      # no en/de-coder
 
    synth_slices_v = [l(decoder_v) for l in synth_slices]
 
    scaling_in = synth_slices_v.pop()
-   hi = make_hi_s()
-   lo = make_lo_s()
+   casc = CascadeFactory(make_lo_s, make_hi_s, shared=True)
    for _ in range(num_levels):
       detail_in = synth_slices_v.pop()
       #observables.append(scaling_in)
       #observables.append(detail_in)
-      #hi = make_hi_s()
-      #lo = make_lo_s()
-      # hi_v = hi(L.UpSampling1D(2)(detail_in))
-      # lo_v = lo(L.UpSampling1D(2)(scaling_in))
-      hi_v = hi(UpSampling1DZeros(2)(detail_in))
-      lo_v = lo(UpSampling1DZeros(2)(scaling_in))
+      lo_v = casc.scaling()(UpSampling1DZeros(2)(scaling_in))
+      hi_v = casc.wavelet()(UpSampling1DZeros(2)(detail_in))
       level_synth_v = L.add([lo_v, hi_v])
       scaling_in = level_synth_v
 
@@ -175,7 +213,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
 size = 32
 
-model = build_dyadic_grid(5, input_len=size, encoder_size=30)
+model = build_dyadic_grid(5, input_len=size, encoder_size=26)
 model.compile(optimizer=keras.optimizers.SGD(lr=1), loss='mean_absolute_error')
 
 
