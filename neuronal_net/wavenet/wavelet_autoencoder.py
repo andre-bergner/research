@@ -73,25 +73,30 @@ class UpSampling1DZeros(Layer):
 
 
 
-
+kernel_size = 6
 
 
 
 def make_analysis_node(kernel):
    #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=False, activation='tanh')
-   return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=False)
    #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), weights=[np.array([[kernel]]).T, np.zeros(1)])
+   #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=False)
+   return L.Conv1D(1, kernel_size=(kernel_size), padding='same', strides=(2), use_bias=False)
 
 def make_lo(): return make_analysis_node([1,1])
 def make_hi(): return make_analysis_node([1,-1])
 
 def make_synth_node(kernel):
    #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=False, activation='tanh')
-   return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=False)
    #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', weights=[np.array([[kernel]]).T, np.zeros(1)])
+   #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=False)
+   return L.Conv1D(1, kernel_size=(kernel_size), padding='same', use_bias=False)
 
 def make_lo_s(): return make_synth_node([1,1])
 def make_hi_s(): return make_synth_node([1,-1])
+
+
+# TODO enable weight sharing between different layers using same weight dimensions
 
 
 class CascadeFactory:
@@ -180,9 +185,9 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
    analysis_layers_v = L.concatenate(out_layers, axis=1)
 
-   coder = build_codercore2(input_len, encoder_size)
-   decoder_v = coder(analysis_layers_v)
-   #decoder_v = analysis_layers_v      # no en/de-coder
+   coder = build_codercore(input_len, encoder_size)
+   #decoder_v = coder(analysis_layers_v)
+   decoder_v = analysis_layers_v      # no en/de-coder
 
    synth_slices_v = [l(decoder_v) for l in synth_slices]
 
@@ -259,6 +264,13 @@ for w in model.get_weights():
    print(w)
 
 plot_input_vs_approx(0)
+
+
+import scipy.signal as ss
+
+def plot_transfer_function(weight_id):
+   w,H = ss.freqz(model.get_weights()[weight_id][:,0,0], 1024)
+   plot(w, abs(H))
 
 # plotting code en/decoder matrix
 # imshow(abs(dot(model.get_weights()[2],model.get_weights()[4])))
