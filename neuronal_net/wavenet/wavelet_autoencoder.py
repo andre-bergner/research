@@ -5,7 +5,7 @@ import numpy as np
 import keras
 import keras.models as M
 import keras.layers as L
-import keras.backend as B
+import keras.backend as K
 import keras.regularizers as regularizers
 
 import tools
@@ -45,6 +45,17 @@ def up_sampling_1d(x, factor):
     return result
 
 
+def interleave_zeros(x, factor, axis):
+
+    shape = K.shape(x)
+    out_shape = [shape[0], shape[1], shape[2], shape[3]]
+    out_shape[axis] = factor * out_shape[axis]
+    out_order = [n for n in range(1,len(out_shape)+1)]
+    out_order.insert(axis+1, 0)
+    input_with_zeros = K.stack([x] + (factor - 1)*[K.zeros_like(x)])
+    return K.reshape(K.permute_dimensions(input_with_zeros, out_order), out_shape)
+
+
 
 from keras.engine.topology import Layer
 from keras.engine import InputSpec
@@ -61,10 +72,10 @@ class UpSampling1DZeros(Layer):
       return (input_shape[0], size, input_shape[2])
 
    def call(self, inputs):
-      return up_sampling_1d(inputs, self.upsampling_factor)
-      #shape = B.shape(inputs)
-      #in_t = B.transpose(inputs)
-      #return B.reshape(B.transpose(B.stack([in_t, B.zeros_like(in_t)])), [-1,2*shape[1],shape[2]])
+      if K.backend() == 'theano':
+         return up_sampling_1d(inputs, self.upsampling_factor)
+      else:
+         return interleave_zeros(inputs, self.upsampling_factor, axis=1)
 
    def get_config(self):
       config = {'size': self.size}
@@ -73,15 +84,15 @@ class UpSampling1DZeros(Layer):
 
 
 
-kernel_size = 6
-
+kernel_size = 2
+use_same_kernel_for_analysis_and_synthesis = False
 
 
 def make_analysis_node(kernel):
    #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=False, activation='tanh')
    #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), weights=[np.array([[kernel]]).T, np.zeros(1)])
    #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=False)
-   return L.Conv1D(1, kernel_size=(kernel_size), padding='same', strides=(2), use_bias=False)
+   return L.Conv1D(1, kernel_size=(kernel_size), padding='same', strides=2, use_bias=False)
 
 def make_lo(): return make_analysis_node([1,1])
 def make_hi(): return make_analysis_node([1,-1])
@@ -90,7 +101,7 @@ def make_synth_node(kernel):
    #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=False, activation='tanh')
    #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', weights=[np.array([[kernel]]).T, np.zeros(1)])
    #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=False)
-   return L.Conv1D(1, kernel_size=(kernel_size), padding='same', use_bias=False)
+   return L.Conv1D(1, kernel_size=(kernel_size), padding='same', strides=1, use_bias=False)
 
 def make_lo_s(): return make_synth_node([1,1])
 def make_hi_s(): return make_synth_node([1,-1])
@@ -126,18 +137,17 @@ def build_codercore(input_len, encoder_size):
    #activation = 'tanh'
    #encoder = L.Dense(units=encoder_size, activation=activation, kernel_regularizer=regularizers.l1(10e-4))#, weights=[np.eye(input_len), np.zeros(input_len)])
    #decoder = L.Dense(units=input_len, activation=activation, kernel_regularizer=regularizers.l1(10e-4))#, weights=[np.eye(input_len), np.zeros(input_len)])
-   encoder = L.Dense(units=encoder_size, activation=activation, activity_regularizer=regularizers.l1(10e-4))#, weights=[np.eye(input_len), np.zeros(input_len)])
+   encoder = L.Dense(units=encoder_size, activation=activation, activity_regularizer=regularizers.l1(0.001))#, weights=[np.eye(input_len), np.zeros(input_len)])
    decoder = L.Dense(units=input_len, activation=activation)
    #encoder = L.Dense(units=encoder_size, activation=activation)
    #decoder = L.Dense(units=input_len, activation=activation)
    reshape2 = L.Reshape((input_len,1))
-   reshape2.activity_regularizer = keras.regularizers.l1(l=0.0001)
+   reshape2.activity_regularizer = keras.regularizers.l1(l=0.001)
 
    def chain(input):
       return reshape2(decoder(encoder(L.Flatten()(input))))
 
    return chain
-
 
 
 
@@ -147,7 +157,6 @@ def build_codercore2(input_len, encoder_size):
    encoder = L.Dense(units=encoder_size, activation=activation)#, weights=[np.eye(input_len), np.zeros(input_len)])
    decoder = L.Dense(units=input_len, activation=activation)
    reshape2 = L.Reshape((input_len,1))
-   #reshape2.activity_regularizer = keras.regularizers.l1(l=0.0001)
 
    def chain(input):
       return reshape2(decoder(encoder(L.Flatten()(input))))
@@ -185,14 +194,20 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
    analysis_layers_v = L.concatenate(out_layers, axis=1)
 
-   coder = build_codercore(input_len, encoder_size)
-   #decoder_v = coder(analysis_layers_v)
-   decoder_v = analysis_layers_v      # no en/de-coder
+   coder = build_codercore2(input_len, encoder_size)
+   decoder_v = coder(analysis_layers_v)
+   #decoder_v = analysis_layers_v      # no en/de-coder
 
    synth_slices_v = [l(decoder_v) for l in synth_slices]
 
    scaling_in = synth_slices_v.pop()
-   casc = CascadeFactory(make_lo_s, make_hi_s, shared=True)
+
+   if use_same_kernel_for_analysis_and_synthesis:
+      casc.scaling().strides = [1]  # HACK: make the model weights shareable
+      casc.wavelet().strides = [1]  # but having different strides per node
+   else:
+      casc = CascadeFactory(make_lo_s, make_hi_s, shared=True)
+
    for _ in range(num_levels):
       detail_in = synth_slices_v.pop()
       #observables.append(scaling_in)
@@ -204,10 +219,10 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
    output = L.Flatten()(level_synth_v)
 
-   #return B.function([input], [output])
+   #return K.function([input], [output])
 
    #observables.append(level_synth_v)
-   #model_f = B.function([input], observables)
+   #model_f = K.function([input], observables)
    #return model_f
 
    model = M.Model(inputs=input, outputs=output)
@@ -218,7 +233,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
 size = 32
 
-model = build_dyadic_grid(5, input_len=size, encoder_size=26)
+model = build_dyadic_grid(5, input_len=size, encoder_size=32)
 model.compile(optimizer=keras.optimizers.SGD(lr=1), loss='mean_absolute_error')
 
 
