@@ -84,15 +84,16 @@ class UpSampling1DZeros(Layer):
 
 
 
-kernel_size = 2
+kernel_size = 4
 use_same_kernel_for_analysis_and_synthesis = False
+num_features = 2
 
 
 def make_analysis_node(kernel):
    #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=False, activation='tanh')
    #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), weights=[np.array([[kernel]]).T, np.zeros(1)])
    #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=False)
-   return L.Conv1D(1, kernel_size=(kernel_size), padding='same', strides=2, use_bias=False)
+   return L.Conv1D(num_features, kernel_size=(kernel_size), padding='same', strides=2, use_bias=False)
 
 def make_lo(): return make_analysis_node([1,1])
 def make_hi(): return make_analysis_node([1,-1])
@@ -107,7 +108,6 @@ def make_lo_s(): return make_synth_node([1,1])
 def make_hi_s(): return make_synth_node([1,-1])
 
 
-# TODO enable weight sharing between different layers using same weight dimensions
 
 
 class CascadeFactory:
@@ -172,7 +172,11 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
    synth_slices = []     # the slices for the synthesis network
    right_crop = input_len
    left_crop = 0
-   current_level_in = reshape(input)
+   reshaped_input = reshape(input)
+   if num_features > 1:
+      current_level_in = L.concatenate(num_features*[reshaped_input],axis=2)
+   else:
+      current_level_in = reshaped_input
    out_layers = []
    #observables = []
    casc = CascadeFactory(make_lo, make_hi, shared=True)
@@ -283,8 +287,8 @@ plot_input_vs_approx(0)
 
 import scipy.signal as ss
 
-def plot_transfer_function(weight_id):
-   w,H = ss.freqz(model.get_weights()[weight_id][:,0,0], 1024)
+def plot_transfer_function(weight_id,channel1=0,channel2=0):
+   w,H = ss.freqz(model.get_weights()[weight_id][:,channel1,channel2], 1024)
    plot(w, abs(H))
 
 # plotting code en/decoder matrix
