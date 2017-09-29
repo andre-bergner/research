@@ -84,28 +84,45 @@ class UpSampling1DZeros(Layer):
 
 
 
-kernel_size = 4
+kernel_size = 7
+shared_weights_in_cascade = True
 use_same_kernel_for_analysis_and_synthesis = False
-num_features = 2
+num_features = 4
+encoder_size = 10
 
-
-def make_analysis_node(kernel):
+def make_analysis_node(down_factor=1):
    #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=False, activation='tanh')
    #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), weights=[np.array([[kernel]]).T, np.zeros(1)])
-   #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=False)
-   return L.Conv1D(num_features, kernel_size=(kernel_size), padding='same', strides=2, use_bias=False)
+   #return L.Conv1D(num_features, kernel_size=(kernel_size), padding='same', strides=2, use_bias=False, activation='tanh')
+   conv1 = L.Conv1D(num_features, kernel_size=(kernel_size), padding='same', strides=2, use_bias=False, activation='tanh')
+   conv2 = L.Conv1D(num_features, kernel_size=(kernel_size), padding='same', strides=down_factor, use_bias=False, activation='tanh')
+   #conv3 = L.Conv1D(num_features, kernel_size=(kernel_size), padding='same', strides=down_factor, use_bias=False, activation='tanh')
 
-def make_lo(): return make_analysis_node([1,1])
-def make_hi(): return make_analysis_node([1,-1])
+   def chain(input):
+      return conv2(conv1(input))
+      #return conv3(conv2(conv1(input)))
 
-def make_synth_node(kernel):
+   return chain
+
+
+def make_lo(): return make_analysis_node(1)
+def make_hi(): return make_analysis_node(2)
+
+def make_synth_node(down_factor=1):
    #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=False, activation='tanh')
    #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', weights=[np.array([[kernel]]).T, np.zeros(1)])
-   #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=False)
-   return L.Conv1D(1, kernel_size=(kernel_size), padding='same', strides=1, use_bias=False)
+   #return L.Conv1D(num_features, kernel_size=(kernel_size), padding='same', strides=1, use_bias=False, activation='tanh')
 
-def make_lo_s(): return make_synth_node([1,1])
-def make_hi_s(): return make_synth_node([1,-1])
+   conv1 = L.Conv1D(num_features, kernel_size=(kernel_size), padding='same', strides=1, use_bias=False, activation='tanh')
+   conv2 = L.Conv1D(num_features, kernel_size=(kernel_size), padding='same', strides=1, use_bias=False, activation='tanh')
+
+   def chain(input):
+      return conv2(conv1(input))
+
+   return chain
+
+def make_lo_s(): return make_synth_node()
+def make_hi_s(): return make_synth_node()
 
 
 
@@ -138,10 +155,10 @@ def build_codercore(input_len, encoder_size):
    #encoder = L.Dense(units=encoder_size, activation=activation, kernel_regularizer=regularizers.l1(10e-4))#, weights=[np.eye(input_len), np.zeros(input_len)])
    #decoder = L.Dense(units=input_len, activation=activation, kernel_regularizer=regularizers.l1(10e-4))#, weights=[np.eye(input_len), np.zeros(input_len)])
    encoder = L.Dense(units=encoder_size, activation=activation, activity_regularizer=regularizers.l1(0.001))#, weights=[np.eye(input_len), np.zeros(input_len)])
-   decoder = L.Dense(units=input_len, activation=activation)
+   decoder = L.Dense(units=input_len*num_features, activation=activation)
    #encoder = L.Dense(units=encoder_size, activation=activation)
    #decoder = L.Dense(units=input_len, activation=activation)
-   reshape2 = L.Reshape((input_len,1))
+   reshape2 = L.Reshape((input_len, num_features))
    reshape2.activity_regularizer = keras.regularizers.l1(l=0.001)
 
    def chain(input):
@@ -155,8 +172,8 @@ def build_codercore2(input_len, encoder_size):
 
    activation = None
    encoder = L.Dense(units=encoder_size, activation=activation)#, weights=[np.eye(input_len), np.zeros(input_len)])
-   decoder = L.Dense(units=input_len, activation=activation)
-   reshape2 = L.Reshape((input_len,1))
+   decoder = L.Dense(units=input_len*num_features, activation=activation)
+   reshape2 = L.Reshape((input_len, num_features))
 
    def chain(input):
       return reshape2(decoder(encoder(L.Flatten()(input))))
@@ -179,7 +196,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
       current_level_in = reshaped_input
    out_layers = []
    #observables = []
-   casc = CascadeFactory(make_lo, make_hi, shared=True)
+   casc = CascadeFactory(make_lo, make_hi, shared=shared_weights_in_cascade)
    for _ in range(num_levels):
 
       lo_v = casc.scaling()(current_level_in)
@@ -198,7 +215,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
    analysis_layers_v = L.concatenate(out_layers, axis=1)
 
-   coder = build_codercore2(input_len, encoder_size)
+   coder = build_codercore(input_len, encoder_size)
    decoder_v = coder(analysis_layers_v)
    #decoder_v = analysis_layers_v      # no en/de-coder
 
@@ -210,7 +227,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
       casc.scaling().strides = [1]  # HACK: make the model weights shareable
       casc.wavelet().strides = [1]  # but having different strides per node
    else:
-      casc = CascadeFactory(make_lo_s, make_hi_s, shared=True)
+      casc = CascadeFactory(make_lo_s, make_hi_s, shared=shared_weights_in_cascade)
 
    for _ in range(num_levels):
       detail_in = synth_slices_v.pop()
@@ -221,7 +238,9 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
       level_synth_v = L.add([lo_v, hi_v])
       scaling_in = level_synth_v
 
-   output = L.Flatten()(level_synth_v)
+   downmix = L.Conv1D(1, kernel_size=(1), use_bias=False)(level_synth_v)
+   output = L.Flatten()(downmix)
+   #output = L.Flatten()(level_synth_v)
 
    #return K.function([input], [output])
 
@@ -237,7 +256,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
 size = 32
 
-model = build_dyadic_grid(5, input_len=size, encoder_size=32)
+model = build_dyadic_grid(5, input_len=size, encoder_size=encoder_size)
 model.compile(optimizer=keras.optimizers.SGD(lr=1), loss='mean_absolute_error')
 
 
@@ -278,6 +297,12 @@ def plot_all_diffs(ns=range(len(data))):
    for n in ns:
       y = model.predict(data[n:n+1])[0]
       plot(data[n]-y, 'k', alpha=0.3)
+
+def mean_diff():
+   return np.mean(
+      [data[n] - model.predict(data[n:n+1])[0] for n in range(len(data))],
+      axis=0
+   )
 
 for w in model.get_weights():
    print(w)
