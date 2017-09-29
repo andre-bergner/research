@@ -34,7 +34,7 @@ k: synth scaling
 
 from theano import tensor as TT
 
-def up_sampling_1d(x, factor):
+def interleave_zeros_theano(x, factor):
     input_shape = x.shape
     output_shape = (input_shape[0], factor*input_shape[1], input_shape[2])
     output = TT.zeros(output_shape)
@@ -73,7 +73,7 @@ class UpSampling1DZeros(Layer):
 
    def call(self, inputs):
       if K.backend() == 'theano':
-         return up_sampling_1d(inputs, self.upsampling_factor)
+         return interleave_zeros_theano(inputs, self.upsampling_factor)
       else:
          return interleave_zeros(inputs, self.upsampling_factor, axis=1)
 
@@ -105,8 +105,8 @@ def make_analysis_node(down_factor=1):
    return chain
 
 
-def make_lo(): return make_analysis_node(1)
-def make_hi(): return make_analysis_node(2)
+def analysis_scaling_node(): return make_analysis_node(1)
+def anawavelet_detail_node(): return make_analysis_node(2)
 
 def make_synth_node(down_factor=1):
    #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=False, activation='tanh')
@@ -121,8 +121,8 @@ def make_synth_node(down_factor=1):
 
    return chain
 
-def make_lo_s(): return make_synth_node()
-def make_hi_s(): return make_synth_node()
+def synth_scaling_node(): return make_synth_node()
+def wavelet_detail_node(): return make_synth_node()
 
 
 
@@ -154,12 +154,12 @@ def build_codercore(input_len, encoder_size):
    #activation = 'tanh'
    #encoder = L.Dense(units=encoder_size, activation=activation, kernel_regularizer=regularizers.l1(10e-4))#, weights=[np.eye(input_len), np.zeros(input_len)])
    #decoder = L.Dense(units=input_len, activation=activation, kernel_regularizer=regularizers.l1(10e-4))#, weights=[np.eye(input_len), np.zeros(input_len)])
-   encoder = L.Dense(units=encoder_size, activation=activation, activity_regularizer=regularizers.l1(0.001))#, weights=[np.eye(input_len), np.zeros(input_len)])
+   encoder = L.Dense(units=encoder_size, activation=activation, activity_regularizer=regularizers.l1(0.0001))#, weights=[np.eye(input_len), np.zeros(input_len)])
    decoder = L.Dense(units=input_len*num_features, activation=activation)
    #encoder = L.Dense(units=encoder_size, activation=activation)
    #decoder = L.Dense(units=input_len, activation=activation)
    reshape2 = L.Reshape((input_len, num_features))
-   reshape2.activity_regularizer = keras.regularizers.l1(l=0.001)
+   reshape2.activity_regularizer = keras.regularizers.l1(l=0.0001)
 
    def chain(input):
       return reshape2(decoder(encoder(L.Flatten()(input))))
@@ -196,7 +196,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
       current_level_in = reshaped_input
    out_layers = []
    #observables = []
-   casc = CascadeFactory(make_lo, make_hi, shared=shared_weights_in_cascade)
+   casc = CascadeFactory(analysis_scaling_node, anawavelet_detail_node, shared=shared_weights_in_cascade)
    for _ in range(num_levels):
 
       lo_v = casc.scaling()(current_level_in)
@@ -227,7 +227,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
       casc.scaling().strides = [1]  # HACK: make the model weights shareable
       casc.wavelet().strides = [1]  # but having different strides per node
    else:
-      casc = CascadeFactory(make_lo_s, make_hi_s, shared=shared_weights_in_cascade)
+      casc = CascadeFactory(synth_scaling_node, wavelet_detail_node, shared=shared_weights_in_cascade)
 
    for _ in range(num_levels):
       detail_in = synth_slices_v.pop()
@@ -282,8 +282,8 @@ model.fit(data, data, batch_size=20, epochs=500, verbose=0,
    callbacks=[tools.Logger(),loss_recorder])
 
 
-from keras.utils import plot_model
-plot_model(model, to_file='wavelet_autoencoder.png')
+#from keras.utils import plot_model
+#plot_model(model, to_file='wavelet_autoencoder.png')
 
 
 from pylab import *
