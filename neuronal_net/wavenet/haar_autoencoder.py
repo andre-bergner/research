@@ -90,7 +90,7 @@ use_same_kernel_for_analysis_and_synthesis = False
 encoder_size = 32
 
 def make_analysis_node():
-   return L.Conv1D(1, kernel_size=(kernel_size), padding='same', strides=2, use_bias=False, activation=None)
+   return L.Conv1D(1, kernel_size=(kernel_size), strides=2, use_bias=False, activation=None)
 
 def analysis_scaling_node(): return make_analysis_node()
 def analysis_wavelet_node(): return make_analysis_node()
@@ -147,8 +147,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
    synth_slices = []     # the slices for the synthesis network
    right_crop = input_len
    left_crop = 0
-   reshaped_input = reshape(input)
-   current_level_in = reshaped_input
+   current_level_in = reshape(input)
    out_layers = []
    #observables = []
    casc = CascadeFactory(analysis_scaling_node, analysis_wavelet_node, shared=shared_weights_in_cascade)
@@ -210,7 +209,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 size = 32
 
 model = build_dyadic_grid(5, input_len=size, encoder_size=encoder_size)
-model.compile(optimizer=keras.optimizers.SGD(lr=1), loss='mean_absolute_error')
+model.compile(optimizer=keras.optimizers.SGD(lr=.01), loss='mean_absolute_error')
 
 
 def make_test_signals(size, num_signals=200, num_modes=5):
@@ -235,8 +234,8 @@ model.fit(data, data, batch_size=20, epochs=500, verbose=0,
    callbacks=[tools.Logger(),loss_recorder])
 
 
-#from keras.utils import plot_model
-#plot_model(model, to_file='haar_autoencoder.png')
+from keras.utils import plot_model
+plot_model(model, to_file='haar_autoencoder.png')
 
 
 from pylab import *
