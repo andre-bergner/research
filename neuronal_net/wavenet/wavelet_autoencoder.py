@@ -106,7 +106,7 @@ def make_analysis_node(down_factor=1):
 
 
 def analysis_scaling_node(): return make_analysis_node(1)
-def anawavelet_detail_node(): return make_analysis_node(2)
+def analysis_wavelet_node(): return make_analysis_node(2)
 
 def make_synth_node(down_factor=1):
    #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=False, activation='tanh')
@@ -122,7 +122,7 @@ def make_synth_node(down_factor=1):
    return chain
 
 def synth_scaling_node(): return make_synth_node()
-def wavelet_detail_node(): return make_synth_node()
+def synth_wavelet_node(): return make_synth_node()
 
 
 
@@ -196,7 +196,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
       current_level_in = reshaped_input
    out_layers = []
    #observables = []
-   casc = CascadeFactory(analysis_scaling_node, anawavelet_detail_node, shared=shared_weights_in_cascade)
+   casc = CascadeFactory(analysis_scaling_node, analysis_wavelet_node, shared=shared_weights_in_cascade)
    for _ in range(num_levels):
 
       lo_v = casc.scaling()(current_level_in)
@@ -227,7 +227,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
       casc.scaling().strides = [1]  # HACK: make the model weights shareable
       casc.wavelet().strides = [1]  # but having different strides per node
    else:
-      casc = CascadeFactory(synth_scaling_node, wavelet_detail_node, shared=shared_weights_in_cascade)
+      casc = CascadeFactory(synth_scaling_node, synth_wavelet_node, shared=shared_weights_in_cascade)
 
    for _ in range(num_levels):
       detail_in = synth_slices_v.pop()
@@ -257,7 +257,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 size = 32
 
 model = build_dyadic_grid(5, input_len=size, encoder_size=encoder_size)
-model.compile(optimizer=keras.optimizers.SGD(lr=1), loss='mean_absolute_error')
+model.compile(optimizer=keras.optimizers.SGD(lr=.5), loss='mean_absolute_error')
 
 
 def make_test_signals(size, num_signals=200, num_modes=5):
