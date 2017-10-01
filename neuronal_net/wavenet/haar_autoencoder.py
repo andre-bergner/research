@@ -90,7 +90,22 @@ use_same_kernel_for_analysis_and_synthesis = False
 encoder_size = 32
 
 def make_analysis_node():
-   return L.Conv1D(1, kernel_size=(kernel_size), strides=2, use_bias=False, activation=None)
+   # This one works as expected but only for kernel_size == 2:
+   # return L.Conv1D(1, kernel_size=(kernel_size), strides=2, use_bias=False, activation=None)
+
+   # This one is a workaround that support kernel_size == 2 as well but introduces an
+   # unnecessary addiotnal parameter in the kernel, that should be zero
+   # return L.Conv1D(1, kernel_size=(kernel_size+1), padding='same', strides=2, use_bias=False, activation=None)
+
+   # This fixes a symmetry issue for the wavelet auto-encoder to work.
+   # It reuires a 'same'-convolution but with zeros added at the end instead of the beginning.
+   pad = L.ZeroPadding1D((0,kernel_size-1))
+   conv = L.Conv1D(1, kernel_size=(kernel_size), padding='valid', strides=2, use_bias=False, activation=None)
+
+   def chain(input):
+      return conv(pad(input))
+
+   return chain
 
 def analysis_scaling_node(): return make_analysis_node()
 def analysis_wavelet_node(): return make_analysis_node()
@@ -149,7 +164,6 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
    left_crop = 0
    current_level_in = reshape(input)
    out_layers = []
-   #observables = []
    casc = CascadeFactory(analysis_scaling_node, analysis_wavelet_node, shared=shared_weights_in_cascade)
    for _ in range(num_levels):
 
@@ -157,7 +171,6 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
       hi_v = casc.wavelet()(current_level_in)
       current_level_in = lo_v
       out_layers.append(hi_v)
-      #observables.append(hi.output)
 
       right_crop >>= 1
       synth_slices.append(L.Cropping1D([left_crop, right_crop]))
@@ -165,7 +178,6 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
    out_layers.append(lo_v)
    synth_slices.append(L.Cropping1D([left_crop, 0]))
-   #observables.append(lo.output)
 
    analysis_layers_v = L.concatenate(out_layers, axis=1)
 
@@ -185,8 +197,6 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
    for _ in range(num_levels):
       detail_in = synth_slices_v.pop()
-      #observables.append(scaling_in)
-      #observables.append(detail_in)
       lo_v = casc.scaling()(UpSampling1DZeros(2)(scaling_in))
       hi_v = casc.wavelet()(UpSampling1DZeros(2)(detail_in))
       level_synth_v = L.add([lo_v, hi_v])
@@ -194,16 +204,19 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
    output = L.Flatten()(level_synth_v)
 
-   #return K.function([input], [output])
-
-   #observables.append(level_synth_v)
-   #model_f = K.function([input], observables)
-   #return model_f
-
    model = M.Model(inputs=input, outputs=output)
    #model.layers[4].activity_regularizer = keras.regularizers.l1(l=0.001)
    return model
 
+
+def observe_all_layers(model):
+   def all_outputs(layer):
+      return [layer.get_output_at(n) for n in range(len(layer.inbound_nodes))]
+   layer_outputs = [all_outputs(l) for l in model.layers[1:]]
+   return K.function(
+      [model.layers[0].input],
+      [l for ll in layer_outputs for l in ll]
+   )
 
 
 size = 32
@@ -235,7 +248,7 @@ model.fit(data, data, batch_size=20, epochs=500, verbose=0,
 
 
 from keras.utils import plot_model
-plot_model(model, to_file='haar_autoencoder.png')
+#plot_model(model, to_file='haar_autoencoder.png')
 
 
 from pylab import *
