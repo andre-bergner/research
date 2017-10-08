@@ -5,7 +5,11 @@ import numpy as np
 import keras
 from keras import models as M
 from keras import layers as L
-import tools
+
+import sys
+sys.path.append('../')
+
+from keras_tools import tools
 
 
 data_size = 300

@@ -11,7 +11,7 @@ import keras.regularizers as regularizers
 import sys
 sys.path.append('../')
 
-import tools
+from keras_tools import tools
 from keras_tools import upsampling as Up
 
 """
