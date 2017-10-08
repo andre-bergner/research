@@ -1,3 +1,14 @@
+--------------------------------------------------------------------------------------------------------
+HAAR/WAVELET AUTOENCODER
+
+Observations
+• need correct upsampler, i.e. interleaving zeros. Upsampler using `repeat` forces prior on kernel to be
+  learned. `repeat` is a [1 1] kernel which suppresses high frequency content. Leared kernel needs to
+  undo this. The size of the kernel might be not sufficient.
+
+
+--------------------------------------------------------------------------------------------------------
+
 
 splitting up layers more detailed into mixing (W.+b) and mapping (σ)
 
