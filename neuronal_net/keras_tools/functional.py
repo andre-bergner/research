@@ -10,7 +10,7 @@ def compose(*fs):
 
 
 
-class Placeholder:
+class Input:
 
    def __init__(self):
       self.functions = []
@@ -19,9 +19,5 @@ class Placeholder:
       self.functions.append(function)
       return self
 
-   def __call__(self, args):
-      result = args
-      for f in self.functions: result = f(result)
-      return result
-
-_1 = Placeholder()
+   def __call__(self, *a, **kw):
+      return compose(*self.functions[::-1])(*a, **kw)

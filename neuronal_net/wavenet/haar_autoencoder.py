@@ -53,7 +53,7 @@ def make_analysis_node():
    pad = L.ZeroPadding1D((0,kernel_size-1))
    conv = L.Conv1D(1, kernel_size=(kernel_size), padding='valid', strides=2, use_bias=False, activation=None)
 
-   return fun.compose(conv, pad)
+   return fun.Input() >> pad >> conv
 
 def analysis_scaling_node(): return make_analysis_node()
 def analysis_wavelet_node(): return make_analysis_node()
@@ -95,7 +95,7 @@ def build_codercore(input_len, encoder_size):
    decoder = L.Dense(units=input_len, activation=activation)
    reshape2 = L.Reshape((input_len, 1))
 
-   return fun.compose(reshape2, decoder, encoder, L.Flatten())
+   return fun.Input() >> L.Flatten() >> encoder >> decoder >> reshape2
 
 
 
