@@ -13,6 +13,7 @@ sys.path.append('../')
 
 from keras_tools import tools
 from keras_tools import upsampling as Up
+from keras_tools import functional as fun
 
 """
 h: wavelet
@@ -48,11 +49,8 @@ def make_analysis_node(down_factor=1):
    conv2 = L.Conv1D(num_features, kernel_size=(kernel_size+1), padding='same', strides=down_factor, use_bias=False, activation='tanh')
    #conv3 = L.Conv1D(num_features, kernel_size=(kernel_size), padding='same', strides=down_factor, use_bias=False, activation='tanh')
 
-   def chain(input):
-      return conv2(conv1(input))
-      #return conv3(conv2(conv1(input)))
-
-   return chain
+   return fun.compose(conv2, conv1)
+   #return fun.compose(conv3, conv2, conv1)
 
 
 def analysis_scaling_node(): return make_analysis_node(1)
@@ -66,10 +64,7 @@ def make_synth_node(down_factor=1):
    conv1 = L.Conv1D(num_features, kernel_size=(kernel_size), padding='same', strides=1, use_bias=False, activation='tanh')
    conv2 = L.Conv1D(num_features, kernel_size=(kernel_size), padding='same', strides=1, use_bias=False, activation='tanh')
 
-   def chain(input):
-      return conv2(conv1(input))
-
-   return chain
+   return fun.compose(conv2, conv1)
 
 def synth_scaling_node(): return make_synth_node()
 def synth_wavelet_node(): return make_synth_node()
@@ -111,10 +106,7 @@ def build_codercore(input_len, encoder_size):
    reshape2 = L.Reshape((input_len, num_features))
    reshape2.activity_regularizer = keras.regularizers.l1(l=0.0001)
 
-   def chain(input):
-      return reshape2(decoder(encoder(L.Flatten()(input))))
-
-   return chain
+   return fun.compose(reshape2, decoder, encoder, L.Flatten())
 
 
 
@@ -125,10 +117,7 @@ def build_codercore2(input_len, encoder_size):
    decoder = L.Dense(units=input_len*num_features, activation=activation)
    reshape2 = L.Reshape((input_len, num_features))
 
-   def chain(input):
-      return reshape2(decoder(encoder(L.Flatten()(input))))
-
-   return chain
+   return fun.compose(reshape2, decoder, encoder, L.Flatten())
 
 
 def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
