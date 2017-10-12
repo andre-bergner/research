@@ -40,7 +40,7 @@ shared_weights_in_cascade = True
 use_same_kernel_for_analysis_and_synthesis = False
 encoder_size = 32
 
-def make_analysis_node():
+def make_analysis_node(num_features=1):
    # This one works as expected but only for kernel_size == 2:
    # return L.Conv1D(1, kernel_size=(kernel_size), strides=2, use_bias=False, activation=None)
 
@@ -51,7 +51,7 @@ def make_analysis_node():
    # This fixes a symmetry issue for the wavelet auto-encoder to work.
    # It reuires a 'same'-convolution but with zeros added at the end instead of the beginning.
    pad = L.ZeroPadding1D((0,kernel_size-1))
-   conv = L.Conv1D(1, kernel_size=(kernel_size), padding='valid', strides=2, use_bias=False, activation=None)
+   conv = L.Conv1D(num_features, kernel_size=(kernel_size), padding='valid', strides=2, use_bias=False, activation=None)
 
    return fun.Input() >> pad >> conv
 
@@ -59,7 +59,11 @@ def analysis_scaling_node(): return make_analysis_node()
 def analysis_wavelet_node(): return make_analysis_node()
 
 def analysis_wavelet_pair():
-   return make_analysis_node(), make_analysis_node()
+   lo = make_analysis_node()
+   hi = make_analysis_node()
+   return lambda x: (lo(x), hi(x))
+
+
 
 def make_synth_node():
    return L.Conv1D(1, kernel_size=(kernel_size), padding='same', strides=1, use_bias=False, activation=None)
@@ -111,9 +115,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=32, input_len=None):
    casc = CascadeFactory(analysis_wavelet_pair, shared=shared_weights_in_cascade)
    for _ in range(num_levels):
 
-      lo, hi = casc.get()
-      lo_v = lo(current_level_in)
-      hi_v = hi(current_level_in)
+      lo_v, hi_v = casc.get()(current_level_in)
       current_level_in = lo_v
       out_layers.append(hi_v)
 
