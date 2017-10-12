@@ -58,32 +58,31 @@ def make_analysis_node():
 def analysis_scaling_node(): return make_analysis_node()
 def analysis_wavelet_node(): return make_analysis_node()
 
+def analysis_wavelet_pair():
+   return make_analysis_node(), make_analysis_node()
+
 def make_synth_node():
    return L.Conv1D(1, kernel_size=(kernel_size), padding='same', strides=1, use_bias=False, activation=None)
 
 def synth_scaling_node(): return make_synth_node()
 def synth_wavelet_node(): return make_synth_node()
 
+def synth_analysis_wavelet_pair():
+   return make_synth_node(), make_synth_node()
 
 
 
 class CascadeFactory:
 
-   def __init__(self, scaling_factory, wavelet_factory, shared=True):
+   def __init__(self, factory, shared=True):
       if shared:
-         scaling_function = scaling_factory();
-         wavelet_function = wavelet_factory();
-         self.scaling_factory = lambda: scaling_function
-         self.wavelet_factory = lambda: wavelet_function
+         artefact = factory();
+         self.factory = lambda: artefact
       else:
-         self.scaling_factory = scaling_factory
-         self.wavelet_factory = wavelet_factory
+         self.factory = factory
 
-   def scaling(self):
-      return self.scaling_factory()
-
-   def wavelet(self):
-      return self.wavelet_factory()
+   def get(self):
+      return self.factory()
 
 
 
@@ -109,11 +108,12 @@ def build_dyadic_grid(num_levels=3, encoder_size=32, input_len=None):
    left_crop = 0
    current_level_in = reshape(input)
    out_layers = []
-   casc = CascadeFactory(analysis_scaling_node, analysis_wavelet_node, shared=shared_weights_in_cascade)
+   casc = CascadeFactory(analysis_wavelet_pair, shared=shared_weights_in_cascade)
    for _ in range(num_levels):
 
-      lo_v = casc.scaling()(current_level_in)
-      hi_v = casc.wavelet()(current_level_in)
+      lo, hi = casc.get()
+      lo_v = lo(current_level_in)
+      hi_v = hi(current_level_in)
       current_level_in = lo_v
       out_layers.append(hi_v)
 
@@ -138,12 +138,13 @@ def build_dyadic_grid(num_levels=3, encoder_size=32, input_len=None):
       casc.scaling().strides = [1]  # HACK: make the model weights shareable
       casc.wavelet().strides = [1]  # but having different strides per node
    else:
-      casc = CascadeFactory(synth_scaling_node, synth_wavelet_node, shared=shared_weights_in_cascade)
+      casc = CascadeFactory(synth_analysis_wavelet_pair, shared=shared_weights_in_cascade)
 
    for _ in range(num_levels):
       detail_in = synth_slices_v.pop()
-      lo_v = casc.scaling()(Up.UpSampling1DZeros(2)(scaling_in))
-      hi_v = casc.wavelet()(Up.UpSampling1DZeros(2)(detail_in))
+      lo, hi = casc.get()
+      lo_v = lo(Up.UpSampling1DZeros(2)(scaling_in))
+      hi_v = hi(Up.UpSampling1DZeros(2)(detail_in))
       level_synth_v = L.add([lo_v, hi_v])
       scaling_in = level_synth_v
 
