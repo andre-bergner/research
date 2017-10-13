@@ -14,6 +14,7 @@ sys.path.append('../')
 from keras_tools import tools
 from keras_tools import upsampling as Up
 from keras_tools import functional as fun
+from keras_tools import extra_layers as XL
 
 """
 h: wavelet
@@ -59,10 +60,15 @@ def analysis_scaling_node(): return make_analysis_node()
 def analysis_wavelet_node(): return make_analysis_node()
 
 def analysis_wavelet_pair():
-   lo = make_analysis_node()
-   hi = make_analysis_node()
-   return lambda x: (lo(x), hi(x))
+   node = make_analysis_node(2)
+   take_feat_0 = XL.Slice(XL.SLICE_LIKE[:,:,0:1])
+   take_feat_1 = XL.Slice(XL.SLICE_LIKE[:,:,1:2])
 
+   def splitter(x):
+      node_v = node(x)
+      return (take_feat_0(node_v), take_feat_1(node_v))
+
+   return splitter
 
 
 def make_synth_node():
@@ -171,6 +177,7 @@ size = 32
 
 model = build_dyadic_grid(5, input_len=size, encoder_size=encoder_size)
 model.compile(optimizer=keras.optimizers.SGD(lr=.01), loss='mean_absolute_error')
+# model.summary()  
 
 
 def make_test_signals(size, num_signals=200, num_modes=5):
