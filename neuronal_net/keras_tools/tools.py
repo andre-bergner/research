@@ -31,12 +31,15 @@ def validate_model(model, inputs, features):
 
 class LossRecorder(keras.callbacks.Callback):
 
+   def __init__(self, **kargs):
+      super(LossRecorder, self).__init__(**kargs)
+      self.losses = []
+      self.grads = []
+
    def _current_weights(self):
       return [l.get_weights() for l in self.model.layers if len(l.get_weights()) > 0]
 
    def on_train_begin(self, logs={}):
-      self.losses = []
-      self.grads = []
       self.last_weights = self._current_weights()
 
    def on_batch_end(self, batch, logs={}):
@@ -65,4 +68,22 @@ class Logger(keras.callbacks.Callback):
    def on_train_end(self, logs={}):
       print(' ✔')
 
-   
+
+def train(model, input, output, batch_size, epochs, loss_recorder=None):
+   if loss_recorder == None:
+      loss_recorder = LossRecorder()
+   model.fit(
+      input, output, batch_size=batch_size, epochs=epochs, verbose=0,
+      callbacks=[Logger(), loss_recorder])
+   return loss_recorder
+
+
+def observe_all_layers(model):
+   def all_outputs(layer):
+      return [layer.get_output_at(n) for n in range(len(layer.inbound_nodes))]
+   layer_outputs = [all_outputs(l) for l in model.layers[1:]]
+   return K.function(
+      [model.layers[0].input],
+      [l for ll in layer_outputs for l in ll]
+   )
+

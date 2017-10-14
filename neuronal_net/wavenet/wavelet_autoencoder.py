@@ -143,14 +143,12 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
    else:
       current_level_in = reshaped_input
    out_layers = []
-   #observables = []
    casc = CascadeFactory(analysis_wavelet_pair, shared=shared_weights_in_cascade)
    for _ in range(num_levels):
 
       lo_v, hi_v = casc.get()(current_level_in)
       current_level_in = lo_v
       out_layers.append(hi_v)
-      #observables.append(hi.output)
 
       right_crop >>= 1
       synth_slices.append(L.Cropping1D([left_crop, right_crop]))
@@ -158,7 +156,6 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
    out_layers.append(lo_v)
    synth_slices.append(L.Cropping1D([left_crop, 0]))
-   #observables.append(lo.output)
 
    analysis_layers_v = L.concatenate(out_layers, axis=1)
 
@@ -178,8 +175,6 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
 
    for _ in range(num_levels):
       detail_in = synth_slices_v.pop()
-      #observables.append(scaling_in)
-      #observables.append(detail_in)
       lo, hi = casc.get()
       lo_v = lo(Up.UpSampling1DZeros(2)(scaling_in))
       hi_v = hi(Up.UpSampling1DZeros(2)(detail_in))
@@ -191,10 +186,6 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
    #output = L.Flatten()(level_synth_v)
 
    #return K.function([input], [output])
-
-   #observables.append(level_synth_v)
-   #model_f = K.function([input], observables)
-   #return model_f
 
    model = M.Model(inputs=input, outputs=output)
    #model.layers[4].activity_regularizer = keras.regularizers.l1(l=0.001)

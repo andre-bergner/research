@@ -163,16 +163,6 @@ def build_dyadic_grid(num_levels=3, encoder_size=32, input_len=None):
    return model
 
 
-def observe_all_layers(model):
-   def all_outputs(layer):
-      return [layer.get_output_at(n) for n in range(len(layer.inbound_nodes))]
-   layer_outputs = [all_outputs(l) for l in model.layers[1:]]
-   return K.function(
-      [model.layers[0].input],
-      [l for ll in layer_outputs for l in ll]
-   )
-
-
 size = 32
 
 model = build_dyadic_grid(5, input_len=size, encoder_size=encoder_size)
