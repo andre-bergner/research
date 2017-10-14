@@ -82,20 +82,6 @@ def synth_analysis_wavelet_pair():
 
 
 
-class CascadeFactory:
-
-   def __init__(self, factory, shared=True):
-      if shared:
-         artefact = factory();
-         self.factory = lambda: artefact
-      else:
-         self.factory = factory
-
-   def get(self):
-      return self.factory()
-
-
-
 
 def build_codercore(input_len, encoder_size):
 
@@ -118,7 +104,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=32, input_len=None):
    left_crop = 0
    current_level_in = reshape(input)
    out_layers = []
-   casc = CascadeFactory(analysis_wavelet_pair, shared=shared_weights_in_cascade)
+   casc = tools.CascadeFactory(analysis_wavelet_pair, shared=shared_weights_in_cascade)
    for _ in range(num_levels):
 
       lo_v, hi_v = casc.get()(current_level_in)
@@ -146,7 +132,7 @@ def build_dyadic_grid(num_levels=3, encoder_size=32, input_len=None):
       casc.scaling().strides = [1]  # HACK: make the model weights shareable
       casc.wavelet().strides = [1]  # but having different strides per node
    else:
-      casc = CascadeFactory(synth_analysis_wavelet_pair, shared=shared_weights_in_cascade)
+      casc = tools.CascadeFactory(synth_analysis_wavelet_pair, shared=shared_weights_in_cascade)
 
    for _ in range(num_levels):
       detail_in = synth_slices_v.pop()

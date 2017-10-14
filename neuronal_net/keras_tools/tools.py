@@ -87,3 +87,16 @@ def observe_all_layers(model):
       [l for ll in layer_outputs for l in ll]
    )
 
+
+class CascadeFactory:
+
+   def __init__(self, factory, shared=True):
+      if shared:
+         artefact = factory();
+         self.factory = lambda: artefact
+      else:
+         self.factory = factory
+
+   def get(self):
+      return self.factory()
+
