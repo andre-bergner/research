@@ -15,6 +15,7 @@ from keras_tools import tools
 from keras_tools import upsampling as Up
 from keras_tools import functional as fun
 from keras_tools import extra_layers as XL
+from keras_tools import test_signals
 
 """
 h: wavelet
@@ -184,24 +185,8 @@ model = build_dyadic_grid(5, input_len=size, encoder_size=encoder_size)
 model.compile(optimizer=keras.optimizers.SGD(lr=.02), loss='mean_absolute_error')
 
 
-def make_test_signals(size, num_signals=200, num_modes=5):
-
-   def make_mode(damp, freq, phase):
-      time = np.arange(size)
-      return np.cos(phase + freq*time) * np.exp(damp*time)
-
-   signals = [
-      np.sum([
-         make_mode( -0.1*d, np.pi*f, np.pi*p )
-         for d,f,p in np.random.rand(num_modes,3)],
-         axis=0)
-      for _ in range(num_signals)
-   ]
-
-   return np.array(signals) / np.max(np.abs(signals))
-
 loss_recorder = tools.LossRecorder()
-data = make_test_signals(size)
+data = test_signals.decaying_sinusoids(size)
 model.fit(data, data, batch_size=20, epochs=500, verbose=0,
    callbacks=[tools.Logger(),loss_recorder])
 
