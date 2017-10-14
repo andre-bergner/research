@@ -14,6 +14,7 @@ sys.path.append('../')
 from keras_tools import tools
 from keras_tools import upsampling as Up
 from keras_tools import functional as fun
+from keras_tools import extra_layers as XL
 
 """
 h: wavelet
@@ -41,7 +42,7 @@ use_same_kernel_for_analysis_and_synthesis = False
 num_features = 4
 encoder_size = 10
 
-def make_analysis_node(down_factor=1):
+def make_analysis_node(down_factor=1, num_features=num_features):
    #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), use_bias=False, activation='tanh')
    #return L.Conv1D(1, kernel_size=(len(kernel)), strides=(2), weights=[np.array([[kernel]]).T, np.zeros(1)])
    #return L.Conv1D(num_features, kernel_size=(kernel_size), padding='same', strides=2, use_bias=False, activation='tanh')
@@ -54,6 +55,19 @@ def make_analysis_node(down_factor=1):
 
 def analysis_scaling_node(): return make_analysis_node(1)
 def analysis_wavelet_node(): return make_analysis_node(2)
+
+
+def analysis_wavelet_pair():
+   node = make_analysis_node(1,2*num_features)
+   take_feat_0 = XL.Slice(XL.SLICE_LIKE[:,:,0:num_features])
+   take_feat_1 = XL.Slice(XL.SLICE_LIKE[:,:,num_features:num_features+num_features])
+
+   def splitter(x):
+      node_v = node(x)
+      return (take_feat_0(node_v), take_feat_1(node_v))
+
+   return splitter
+
 
 def make_synth_node(down_factor=1):
    #return L.Conv1D(1, kernel_size=(len(kernel)), padding='same', use_bias=False, activation='tanh')
@@ -68,26 +82,23 @@ def make_synth_node(down_factor=1):
 def synth_scaling_node(): return make_synth_node()
 def synth_wavelet_node(): return make_synth_node()
 
+def synth_wavelet_pair():
+   return make_synth_node(), make_synth_node()
+
 
 
 
 class CascadeFactory:
 
-   def __init__(self, scaling_factory, wavelet_factory, shared=True):
+   def __init__(self, factory, shared=True):
       if shared:
-         scaling_function = scaling_factory();
-         wavelet_function = wavelet_factory();
-         self.scaling_factory = lambda: scaling_function
-         self.wavelet_factory = lambda: wavelet_function
+         artefact = factory();
+         self.factory = lambda: artefact
       else:
-         self.scaling_factory = scaling_factory
-         self.wavelet_factory = wavelet_factory
+         self.factory = factory
 
-   def scaling(self):
-      return self.scaling_factory()
-
-   def wavelet(self):
-      return self.wavelet_factory()
+   def get(self):
+      return self.factory()
 
 
 
@@ -133,11 +144,10 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
       current_level_in = reshaped_input
    out_layers = []
    #observables = []
-   casc = CascadeFactory(analysis_scaling_node, analysis_wavelet_node, shared=shared_weights_in_cascade)
+   casc = CascadeFactory(analysis_wavelet_pair, shared=shared_weights_in_cascade)
    for _ in range(num_levels):
 
-      lo_v = casc.scaling()(current_level_in)
-      hi_v = casc.wavelet()(current_level_in)
+      lo_v, hi_v = casc.get()(current_level_in)
       current_level_in = lo_v
       out_layers.append(hi_v)
       #observables.append(hi.output)
@@ -164,14 +174,15 @@ def build_dyadic_grid(num_levels=3, encoder_size=10, input_len=None):
       casc.scaling().strides = [1]  # HACK: make the model weights shareable
       casc.wavelet().strides = [1]  # but having different strides per node
    else:
-      casc = CascadeFactory(synth_scaling_node, synth_wavelet_node, shared=shared_weights_in_cascade)
+      casc = CascadeFactory(synth_wavelet_pair, shared=shared_weights_in_cascade)
 
    for _ in range(num_levels):
       detail_in = synth_slices_v.pop()
       #observables.append(scaling_in)
       #observables.append(detail_in)
-      lo_v = casc.scaling()(Up.UpSampling1DZeros(2)(scaling_in))
-      hi_v = casc.wavelet()(Up.UpSampling1DZeros(2)(detail_in))
+      lo, hi = casc.get()
+      lo_v = lo(Up.UpSampling1DZeros(2)(scaling_in))
+      hi_v = hi(Up.UpSampling1DZeros(2)(detail_in))
       level_synth_v = L.add([lo_v, hi_v])
       scaling_in = level_synth_v
 
