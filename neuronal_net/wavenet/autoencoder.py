@@ -64,8 +64,8 @@ deriv =  L.Conv2D(
 # ring1_dec = ring1_dec_ >> reshape_out
 # dy3 = y3 >> deriv >> ring1_dec
 
-ring1_enc = fun.args >> reshape_in >> enc1 >> act()
-ring1_dec = fun.args >> dec3_up >> dec3 >> act() >> reshape_out
+ring1_enc = fun.ARGS >> reshape_in >> enc1 >> act()
+ring1_dec = fun.ARGS >> dec3_up >> dec3 >> act() >> reshape_out
 y1 = ring1_enc >> ring1_dec
 y2 = ring1_enc >> enc2 >> act() >> dec2_up >> dec2 >> act() >> ring1_dec
 y3 = ring1_enc >> enc2 >> act() >> enc3 >> act() >> enc_core >> act() >> dec1_up >> dec1 >> act() >> dec2_up >> dec2 >> act() >> ring1_dec

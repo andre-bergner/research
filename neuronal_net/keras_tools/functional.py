@@ -16,8 +16,14 @@ class Input:
       self.functions = []
 
    def __rshift__(self, function):
-      self.functions.append(function)
-      return self
+      input = Input()
+      input.functions = self.functions.copy()
+      input.functions.append(function)
+      return input
 
    def __call__(self, *a, **kw):
       return compose(*self.functions[::-1])(*a, **kw)
+
+
+INPUTS = Input()
+ARGS = Input()
