@@ -1,0 +1,34 @@
+# Automatic differentiation
+
+graph leaves: symbols s_n,e.g. values in matrix a[n,m], values in vector x[n], some scalar k
+
+Differentiation a symbol with respect to any other symbol is 0 except for itself it is 1.
+
+   ∂s_n/∂s_m = δ_nm
+
+differentaition unary function with respect to some symbol s = s_n (index omitted)
+
+   ∂f(x)/∂s = ∂f(x)/∂x * ∂x/∂s
+
+
+differentaition binary function with respect to some symbol s = s_n (index omitted)
+
+   ∂f(x,y)/∂s = ∂f/∂x * ∂x/∂s + ∂f/∂y * ∂y/∂s
+
+   example: f = _*_
+
+      ∂(x*y)/∂s  =  y ∂x/∂s + x ∂y/∂s
+                 =  x´y + xy´
+
+   example: f = _/_
+
+      ∂(x/y)/∂s  =  1/y ∂x/∂s + (-x)/(y^2) ∂y/∂s
+                 =  x´/y - xy´/y^2
+                 =  (x´y - xy´)/y^2
+
+
+      _______
+    /   ________
+   x   y
+    \ /
+  f: *   ∂f/∂s:  ∂f(x,y,x´,y´)
