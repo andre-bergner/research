@@ -56,39 +56,69 @@ def model_gen(x, reshape_in, reshape_out, conv, act, up):
    return model, joint_model
 
 
-model, joint_model = make_model([sig_len], model_gen, use_bias=use_bias)
-
-model.compile(optimizer=keras.optimizers.SGD(lr=learning_rate), loss=loss_function)
-joint_model.compile(optimizer=keras.optimizers.SGD(lr=learning_rate), loss=loss_function)
-
-
-
 
 
 def print_layer_outputs(model):
    for l in model.layers:
       print(l.output_shape[1:])
 
-def random_img(num_modes=1):
+def random_img(num_modes=1, decay=0.02):
    sig = np.zeros((sig_len))
    rnd = np.random.rand
    for n in range(num_modes):
-      sig += np.real(np.exp( (-0.02*np.exp(rnd()) + 1.j*(np.exp(-2*rnd()))) * np.arange(0,sig_len)))
+      phi = np.exp( 1.j * np.pi * rnd() )
+      sig += np.real(phi * np.exp( (-decay*np.exp(rnd()) + 1.j*(np.exp(-2*rnd()))) * np.arange(0,sig_len)))
    return sig / (2*num_modes)
+
+
+
+print('generating test data')
+images = np.array([random_img(decay=0) for n in range(500)])
+
+
+
+model, joint_model = make_model([sig_len], model_gen, use_bias=use_bias)
+
+model.compile(optimizer=keras.optimizers.SGD(lr=learning_rate), loss=loss_function)
+joint_model.compile(optimizer=keras.optimizers.SGD(lr=learning_rate), loss=loss_function)
+
+
+def dense(units, use_bias=True):
+   return fun.ARGS >> L.Dense(units=int(units), activation='tanh', use_bias=use_bias)
+
+x = input_like(images[0])
+y = dense(sig_len/2) >> dense(4) >> dense(sig_len/2) >> dense(sig_len)
+
+model = M.Model([x], [y(x)])
+model.compile(optimizer=keras.optimizers.SGD(lr=learning_rate), loss=loss_function)
+
+
+
 
 
 print('model shape')
 print_layer_outputs(model)
 
-print('generating test data')
-images = np.array([random_img() for n in range(500)])
-
 print('training')
 loss_recorder = tools.LossRecorder()
+
+
+
+model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
+tools.train(model, images, images, 20, 3000, loss_recorder)
+
+model.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
+tools.train(model, images, images, 20, 3000, loss_recorder)
+tools.train(model, images, images, 50, 3000, loss_recorder)
+
+model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
+tools.train(model, images, images, 50, 5000, loss_recorder)
+
+
 #tools.train(model, images, images, 20, n_epochs, loss_recorder)
 #tools.train(joint_model, images, [images,images,images,images,images], 20, n_epochs, loss_recorder)
 
-
+"""
 tools.train(joint_model, images, [images,images,images,images,images], 20, 200, loss_recorder)
 
 joint_model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
@@ -96,14 +126,12 @@ tools.train(joint_model, images, [images,images,images,images,images], 50, 200, 
 
 joint_model.compile(optimizer=keras.optimizers.SGD(lr=0.001), loss=loss_function)
 tools.train(joint_model, images, [images,images,images,images,images], 100, 200, loss_recorder)
-
+"""
 
 from pylab import *
 
 figure()
 semilogy(loss_recorder.losses)
-
-figure()
 
 #model.load_weights('circle_auto_encoder.hdf5')
 #model.save_weights('sig_autoencoder_decently_trained.hdf5')

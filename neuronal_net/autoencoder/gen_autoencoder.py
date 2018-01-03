@@ -40,6 +40,10 @@ def make_conv2d(num_feat, kernel_size, stride, initializer, use_bias, padding='s
    )
 
 
+def input_like(x):
+   return L.Input(shape=x.shape)
+
+
 convolver = {
    '1d': make_conv1d,
    '2d': make_conv2d
