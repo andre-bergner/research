@@ -69,7 +69,7 @@ figure()
 plot( alpha_csct( t, 1, 0.09 ) , 'k' )
 plot( alpha_dsct( t, 1, 0.6 ) , 'k' )
 
-
+show()
 
 """
 figure()

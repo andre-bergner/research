@@ -17,7 +17,7 @@ def circulant_one_pole( a , x ):
 N = 512
 
 x = zeros(N)
-x[N/4] = 1
+x[N//4] = 1
 
 
 #   ---------------------------------------------------------------------------------------------
@@ -34,11 +34,11 @@ y = circulant_one_pole( k , x )
 
 figure()
 subplot(211)
-plot( log(Nab_[:,N/4]) , 'k' )
+plot( log(Nab_[:,N//4]) , 'k' )
 plot( log(y) , 'r' )
 
 subplot(212)
-plot( log(Nab_[:,N/4]) - log(y) , 'k' )
+plot( log(Nab_[:,N//4]) - log(y) , 'k' )
 
 
 
@@ -68,17 +68,17 @@ y = g*(y1 + y2 - x)
 figure()
 
 subplot(211)
-plot( log((Lap_[:,N/4])) , 'k' )
+plot( log((Lap_[:,N//4])) , 'k' )
 plot( log((y)) , 'r' )
 
 subplot(212)
-plot( log((Lap_[:,N/4])) - (log(y)) , 'k' )
+plot( log((Lap_[:,N//4])) - (log(y)) , 'k' )
 
 title( "1. circulant one pole" )
 
 
 
-half = lambda x: x[:len(x)/2]
+half = lambda x: x[:len(x)//2]
 
 def circulant_one_pole_mirrored( a , x ):
    N = len(x)

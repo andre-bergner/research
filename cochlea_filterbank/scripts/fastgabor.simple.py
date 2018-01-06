@@ -47,35 +47,29 @@ M2 = I + k2*K
 def H ( A , B , z  ):
    return  linalg.solve( z * M2  +  M1  , B )
 
-
 i = 1.j
 N_W = 4000
 W = linspace(-pi,pi,N_W)
 
-Hz = array( map( lambda w: H(A,B,exp(i*w)) , W ) )
+Hz = array([H(A, B, exp(i*w)) for w in W])
 
-
-S = linalg.solve( M2 , M1 )
-print sort( abs(eig(S)[0]) )
-
+S = linalg.solve(M2, M1)
+print(sort(abs(eig(S)[0])))
 
 figure()
-plot( W , abs(Hz)[:,:] ,'k' , linewidth = 0.7 , alpha = 0.6 )
-plot( W , abs(Hz[:,N/2]) , 'k' , linewidth = 3 )
+plot(W, abs(Hz)[:,:],'k', linewidth = 0.7, alpha = 0.6)
+plot(W, abs(Hz[:,N//2]), 'k', linewidth = 3)
 
 figure()
-plot( abs( np.sum( (exp(-24j*f) * Hz)[:,N/2:] , axis = 1 ) ) )
+plot(abs(np.sum((exp(-24j*f) * Hz)[:,N//2:], axis = 1 )))
 
 figure()
-plot( -diff(unwrap(angle(Hz[:,N/2]))) * N_W / (2*pi) , 'k' )
-plot( abs(Hz[:,N/2]) , 'b' )
-
+plot( -diff(unwrap(angle(Hz[:,N//2]))) * N_W / (2*pi), 'k' )
+plot( abs(Hz[:,N//2]), 'b' )
 
 figure()
-plot( abs(fft(Hz[:,10]))[:-100:-1] , 'k' , linewidth = 2 )
-plot( real(fft(Hz[:,10]))[:-100:-1] , 'k' , alpha = 0.8 )
-plot( imag(fft(Hz[:,10]))[:-100:-1] , 'k' , alpha = 0.8 )
+plot( abs(fft(Hz[:,10]))[:-100:-1], 'k', linewidth = 2 )
+plot( real(fft(Hz[:,10]))[:-100:-1], 'k', alpha = 0.8 )
+plot( imag(fft(Hz[:,10]))[:-100:-1], 'k', alpha = 0.8 )
 
-
-show();
-
+show()

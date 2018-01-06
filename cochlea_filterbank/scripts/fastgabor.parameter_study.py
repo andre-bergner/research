@@ -130,9 +130,10 @@ def H( z ):    # state space transfer function
 
 
 W = linspace(-pi,pi,2000)
-Hz = array( map( lambda w: H(exp(1.j*w)) , W ) )
+# Hz = array( map( lambda w: H(exp(1.j*w)) , W ) )
+Hz = array([H(exp(1.j*w)) for w in W])
 
-print sort( abs(eig(P)[0]) )
+print(sort( abs(eig(P)[0]) ))
 
 
 #E = []
@@ -148,7 +149,7 @@ figure()
 plot( W , abs(Hz)[:,:] ,'k' )
 
 figure()
-plot( abs(Hz[:,N/2]) , 'k' )
+plot( abs(Hz[:,N//2]) , 'k' )
 
 show()
 

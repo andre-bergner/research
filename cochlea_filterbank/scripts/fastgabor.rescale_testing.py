@@ -37,9 +37,10 @@ def  compute_gaborbank( N , damp , k , range , N_range ):
 
    W = linspace( -range , range , N_range )
    Hz = array( map( lambda w: transfer_function( A , B , exp(i*w) )  ,  W ) )
+   Hz = array([transfer_function(A, B, exp(i*w)) for w in W ])
    #EigenValue =  mean( abs( eig( linalg.solve(eye(N),A) )[0]) )
 
-   return  Hz[:,N/2] #, EigenValue  # return just the center one, as all are symmetric
+   return  Hz[:,N//2] #, EigenValue  # return just the center one, as all are symmetric
 
 
 
@@ -59,7 +60,7 @@ for N in N_range:
    H = compute_gaborbank( N , damp/N , k/N , min( range/N , pi ) , dots )
    H_collection.append( H )
    #AbsEigenValues.append( E )
-   print N
+   print(N)
    plot( abs(H) , 'k' )
    H_max = abs( H )
    H_sum = sum(abs( compute_gaborbank( N , damp/N , k/N , min( range/N , pi ) , dots ) ))
