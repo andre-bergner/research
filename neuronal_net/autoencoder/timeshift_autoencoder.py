@@ -2,24 +2,34 @@
 # • concatenate with x-fade
 # • try different shifts
 # • try different frame_size's
+# • try loss functions: fft, separate lopass & hipass filters
 # • try adding noise (denoising timeshift AE)
 # • try to increase frame_size using deep-conv with downsampling
 # • try strided prediction (Taken's theorem) --> random sampling?
 
 
 from gen_autoencoder import *
+from keras_tools import extra_layers as XL
 from pylab import imshow
 
-sig_len = 256
+frame_size = 64
 n_features = 4
 kern_len = 16
+shift = 8
+n_latent = 10
 
 #act = lambda: L.LeakyReLU(alpha=0.3)
 use_bias = False
 n_epochs = 300
 
 learning_rate = .1
-loss_function = 'mean_absolute_error'
+# loss_function = 'mean_absolute_error'
+# loss_function = 'mean_squared_error'
+# loss_function = 'categorical_crossentropy'
+loss_function = lambda y_true, y_pred: \
+   keras.losses.mean_absolute_error(y_true, y_pred) \
+   # + 0.1*keras.losses.mean_absolute_error(XL.power_spectrum(y_true), XL.power_spectrum(y_pred))
+   # + keras.losses.mean_absolute_error(K.log(XL.power_spectrum(y_true)), K.log(XL.power_spectrum(y_pred)))
 
 def model_gen(x, reshape_in, reshape_out, conv, act, up):
 
@@ -71,9 +81,11 @@ def print_layer_outputs(model):
 def make_signal(n_samples=10000):
    t = np.arange(n_samples)
    sin = np.sin
-   signal = 5. * sin(t/3.7 + .3) \
-          + 3. * sin(t/1.3 + .1) \
-          + 4. * sin(0.2*t + 6*sin(0.02*t))
+   signal = 4. * sin(0.2*t + 6*sin(0.02*t))  +  5. * sin(t/3.7 + .3) \
+
+   #signal = 5. * sin(t/3.7 + .3) \
+   #       + 3. * sin(t/1.3 + .1) \
+   #       + 4. * sin(0.2*t + 6*sin(0.02*t))
           #+ 4. * sin(0.7*t + 14*sin(0.1*t))
           #+ 2. * sin(t/34.7 + .7)
    return signal / 20
@@ -85,7 +97,7 @@ def make_training_set(frame_size=30, n_pairs=1000, shift=1):
    ys = [sig[n+shift:n+frame_size+shift] for n in ns]
    return np.array(xs), np.array(ys)
 
-in_frames, out_frames  = make_training_set(frame_size=64, n_pairs=10000, shift=10)  # 64
+in_frames, out_frames  = make_training_set(frame_size=frame_size, n_pairs=10000, shift=shift)
 
 # model, joint_model = make_model([sig_len], model_gen, use_bias=use_bias)
 # model.compile(optimizer=keras.optimizers.SGD(lr=learning_rate), loss=loss_function)
@@ -94,16 +106,22 @@ in_frames, out_frames  = make_training_set(frame_size=64, n_pairs=10000, shift=1
 def dense(units, use_bias=True):
    return fun.ARGS >> L.Dense(units=int(units), activation='tanh', use_bias=use_bias)
 
-sig_len = len(in_frames[0])
 
-x = input_like(in_frames[0])
-y = dense(sig_len/2) >> dense(10) >> dense(sig_len/2) >> dense(sig_len)
-
-model = M.Model([x], [y(x)])
-model.compile(optimizer=keras.optimizers.SGD(lr=learning_rate), loss=loss_function)
-
+def make_dense_model(sig_len, latent_size):
+   x = input_like(in_frames[0])
+   y = dense(sig_len/2) >> dense(latent_size) >> dense(sig_len/2) >> dense(sig_len)
+   # y = dense(sig_len/2) >> dense(sig_len/4) >> dense(latent_size) >> dense(sig_len/4) >> dense(sig_len/2) >> dense(sig_len)
+   return M.Model([x], [y(x)])
 
 
+
+def train(model, in_frames, out_frames, batch_size, n_epochs, loss_recorder):
+   #if type(model.output) == list
+   #   target = [out_frames].repeat(len(...))
+   tools.train(model, in_frames, out_frames, batch_size, n_epochs, loss_recorder)
+
+
+model = make_dense_model(len(in_frames[0]), n_latent)
 
 
 print('model shape')
@@ -122,7 +140,7 @@ model.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
 tools.train(model, in_frames, out_frames, 20, n_epochs, loss_recorder)
 
 model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
-tools.train(model, in_frames, out_frames, 50, n_epochs, loss_recorder)
+tools.train(model, in_frames, out_frames, 50, 2*n_epochs, loss_recorder)
 
 from pylab import *
 
@@ -170,9 +188,28 @@ def plot_diff(step=10):
 plot_orig_vs_reconst(0)
 
 
-# sig = make_signal(60000)
-# frames = np.array([f[0] for f in generate_n_frames_from(in_frames[0:1],6000)])
-# pred_sig = concatenate([ f[-10:] for f in frames[1:] ])
+
+def xfade_append(xs, ys, n_split):
+   num_left = len(ys) - n_split
+   fade = np.linspace(0, 1, num_left)
+   xs[-num_left:] *= (1-fade)
+   xs[-num_left:] += ys[:num_left] * fade
+   return concatenate([xs, ys[-n_split:]])
+
+def predict_signal(n_samples):
+   frames = np.array([f[0] for f in generate_n_frames_from(in_frames[0:1], int(n_samples/shift))])
+   # pred_sig = concatenate([ f[-shift:] for f in frames[1:] ])
+   pred_sig = in_frames[0]
+   for f in frames[0:]:
+      pred_sig = xfade_append(pred_sig, f, shift)
+   return pred_sig
+
+sig = make_signal(60000)
+pred_sig = predict_signal(60000)
+
+figure()
+plot(sig[:2000], 'k')
+plot(pred_sig[:2000], 'r')
 
 # import sounddevice as sd
 # sd.play(sig, 44100)
