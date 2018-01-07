@@ -65,3 +65,67 @@ class Slice(Layer):
         config = {'slices': self.slices}
         base_config = super(Slice, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+
+
+
+
+
+
+
+
+
+
+
+import keras.backend as K
+
+if K.backend() == 'theano':
+
+    from theano import tensor as TT
+
+    def fft(x):
+        y = TT.fft.rfft(x)
+        if hasattr(x, '_keras_shape'):
+            y._keras_shape = (x._keras_shape[0], x._keras_shape[1]/2 + 1, 2)
+        return y
+
+    def power_spectrum(x):
+        y = TT.fft.rfft(x)
+        y = y[:,:,0]**2 + y[:,:,1]**2
+        # if hasattr(x, '_keras_shape'):
+        #     y._keras_shape = (x._keras_shape[0], x._keras_shape[1]/2 + 1)
+        return y
+
+else:
+
+    def fft(x):
+        y = tf.fft(x)
+        # ...
+        return y
+
+
+
+
+class FourierTrafo(Layer):
+    """Fourier Transform layer
+
+    Computes a (fast) fourier transform of the input tensor
+
+    # Arguments
+        tensor
+
+    # Input shape
+        ND tensor with shape `(batch, dim1, ..., dimN, features)`
+
+    # Output shape
+        ND tensor with shape `(batch, dim1, ..., dimN, features) ^ slices`
+    """
+
+    def __init__(self, **kwargs):
+        super(FourierTrafo, self).__init__(**kwargs)
+
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], input_shape[1]/2 + 1, 2)
+
+    def call(self, inputs):
+        return fft(inputs)
