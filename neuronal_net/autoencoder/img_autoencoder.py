@@ -1,3 +1,6 @@
+# TODO
+# • try shared layers (like in the wavelet network)
+
 from gen_autoencoder import *
 from pylab import imshow
 
