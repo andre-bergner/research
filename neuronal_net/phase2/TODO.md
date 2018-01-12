@@ -1,6 +1,15 @@
 
 # TODO
 
+* learning state space (wavenet-kind):
+  * train like denoising-autoencoder
+    * learn time-shift operator, i.e. {x[0],x[1],...,x[N]} -> {x[1],x[2],...,x[N+1]}
+    * average overlapping part?
+
+* deep waveforms
+  → (pre-)train denoising autoencoder on basic shapes (triangles, rectangles, circles, etc.)
+  → train DAE no simple clear sound (drums?) with noise added in audio domain
+
 * wavelet autoencoder
   * create sliding auto-encoder:
     * perceptual field of length N is encoded by stream of size S
@@ -27,3 +36,4 @@
   → use linear layers
   → use dyadic grid topology
   → use autoencoders and harmonic mixture signal
+
