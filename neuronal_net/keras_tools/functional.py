@@ -27,3 +27,18 @@ class Input:
 
 INPUTS = Input()
 ARGS = Input()
+
+ 
+# class Pipeable:
+# 
+#    def __init__(self, super_obj):
+#       self.__class__ = type(
+#          super_obj.__class__.__name__,
+#          (self.__class__, super_obj.__class__),
+#          {}
+#       )
+#       self.__dict__ = super_obj.__dict__
+#       # super(Pipeable, self).__init__(**kwargs)
+# 
+#    def __rshift__(self, function):
+#       return ARGS >> self >> function
