@@ -1,7 +1,8 @@
 # TODO
-# • concatenate with x-fade
-# • try different shifts
-# • try different frame_size's
+# • get 'normal' (conv-)autoencoder for signals working
+# ✔ concatenate with x-fade
+# ✔ try different shifts
+# ✔ try different frame_size's
 # • try loss functions: fft, separate lopass & hipass filters
 # • try adding noise (denoising timeshift AE)
 # • try to increase frame_size using deep-conv with downsampling
@@ -12,14 +13,14 @@ from gen_autoencoder import *
 from keras_tools import extra_layers as XL
 from pylab import imshow
 
-frame_size = 64
+frame_size = 128
 n_features = 4
-kern_len = 16
+kern_len = 8
 shift = 8
 n_latent = 10
 
 #act = lambda: L.LeakyReLU(alpha=0.3)
-use_bias = False
+use_bias = True
 n_epochs = 300
 
 learning_rate = .1
@@ -30,6 +31,8 @@ loss_function = lambda y_true, y_pred: \
    keras.losses.mean_absolute_error(y_true, y_pred) \
    # + 0.1*keras.losses.mean_absolute_error(XL.power_spectrum(y_true), XL.power_spectrum(y_pred))
    # + keras.losses.mean_absolute_error(K.log(XL.power_spectrum(y_true)), K.log(XL.power_spectrum(y_pred)))
+   # TODO lo/hipass: K.conv1d(x, kernel, strides=1, padding='valid', data_format=None, dilation_rate=1)
+
 
 def model_gen(x, reshape_in, reshape_out, conv, act, up):
 
@@ -103,8 +106,11 @@ in_frames, out_frames  = make_training_set(frame_size=frame_size, n_pairs=10000,
 # model.compile(optimizer=keras.optimizers.SGD(lr=learning_rate), loss=loss_function)
 # joint_model.compile(optimizer=keras.optimizers.SGD(lr=learning_rate), loss=loss_function)
 
+act = lambda: L.Activation('tanh')
+#act = lambda: L.LeakyReLU(alpha=0.5)
+
 def dense(units, use_bias=True):
-   return fun.ARGS >> L.Dense(units=int(units), activation='tanh', use_bias=use_bias)
+   return fun.ARGS >> L.Dense(units=int(units), activation=None, use_bias=use_bias) >> act()
 
 
 def make_dense_model(sig_len, latent_size):
@@ -115,13 +121,14 @@ def make_dense_model(sig_len, latent_size):
 
 
 
-def train(model, in_frames, out_frames, batch_size, n_epochs, loss_recorder):
-   #if type(model.output) == list
-   #   target = [out_frames].repeat(len(...))
-   tools.train(model, in_frames, out_frames, batch_size, n_epochs, loss_recorder)
+def train(model, inputs, target, batch_size, n_epochs, loss_recorder):
+   if type(model.output) == list:
+      target = len(model.output) * [target]
+   tools.train(model, inputs, target, batch_size, n_epochs, loss_recorder)
 
 
 model = make_dense_model(len(in_frames[0]), n_latent)
+#model, joint_model = make_model([len(in_frames[0])], model_gen, use_bias=use_bias)
 
 
 print('model shape')
@@ -132,6 +139,8 @@ loss_recorder = tools.LossRecorder()
 
 # model.save_weights('timeshift_autoencoder_dense_64_32_10.hdf5')
 # model.save_weights('timeshift_autoencoder_dense_64_32_10.hdf5')
+
+# joint_model does only work with real auto encoders
 
 model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
 tools.train(model, in_frames, out_frames, 20, n_epochs, loss_recorder)

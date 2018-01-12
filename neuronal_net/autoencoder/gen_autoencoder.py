@@ -15,6 +15,7 @@ sys.path.append('../')
 from keras_tools import tools
 from keras_tools import upsampling as Up
 from keras_tools import functional as fun
+from keras_tools import functional_layers as F
 
 
 def make_conv1d(num_feat, kernel_size, stride, initializer, use_bias, padding='same'):
