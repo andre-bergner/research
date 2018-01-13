@@ -113,11 +113,7 @@ def model_gen(x, reshape_in, reshape_out, conv, act, up):
 
 
 
-def print_layer_outputs(model):
-   for l in model.layers:
-      print(l.name, ": ", l.output_shape[1:])
-
-def random_img(num_modes=1, decay=0.02):
+def random_sinusoid(num_modes=1, decay=0.02):
    sig = np.zeros((sig_len))
    rnd = np.random.rand
    for n in range(num_modes):
@@ -126,14 +122,9 @@ def random_img(num_modes=1, decay=0.02):
       #sig += np.real(phi * np.exp( (-decay*np.exp(rnd()) + 1.j*(-2.8*rnd())) * np.arange(0,sig_len)))
    return sig / (2*num_modes)
 
-def random_param(decay=0.02):
-   #return -decay*np.exp(rnd()) + 1.j*(np.exp(-2.8*rnd()))
-   return np.exp(-2.8*np.random.rand())
-
-
 
 print('generating test data')
-images = np.array([random_img(decay=0) for n in range(num_data)])
+data = np.array([random_sinusoid(decay=0) for n in range(num_data)])
 
 
 
@@ -141,7 +132,7 @@ def dense(units, use_bias=True):
    return fun.ARGS >> L.Dense(units=int(units), activation=activation, use_bias=use_bias)
 
 def make_dense_model():
-   x = input_like(images[0])
+   x = input_like(data[0])
    #y = dense(sig_len/2) >> dense(4) >> dense(sig_len/2) >> dense(sig_len)
    enc1 = dense(sig_len/2)
    enc2 = dense(sig_len/4)
@@ -166,11 +157,8 @@ def make_dense_model():
 
 
 #model, joint_model = make_model([sig_len], model_gen, use_bias=use_bias)
-model, joint_model = make_dense_model()#([sig_len], model_gen, use_bias=use_bias)
+model, joint_model = make_dense_model()
 
-
-# TODO:
-# • create tool: plot 3 worst / plot 3 best
 
 def train(model, inputs, target, batch_size, n_epochs, loss_recorder):
    if type(model.output) == list:
@@ -179,7 +167,7 @@ def train(model, inputs, target, batch_size, n_epochs, loss_recorder):
 
 
 print('model shape')
-print_layer_outputs(model)
+tools.print_layer_outputs(model)
 
 print('training')
 loss_recorder = tools.LossRecorder()
@@ -187,39 +175,30 @@ loss_recorder = tools.LossRecorder()
 
 
 #joint_model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
-#train(joint_model, images, images, 32, 2000, loss_recorder)
+#train(joint_model, data, data, 32, 2000, loss_recorder)
 
 def add_noise(data, sigma=0.0):
    return data + sigma * np.random.randn(*data.shape)
 
 model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
-train(model, add_noise(images), images, 64, 3000, loss_recorder)
+train(model, add_noise(data), data, 64, 3000, loss_recorder)
 
 model.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
-train(model, add_noise(images), images, 64, 2000, loss_recorder)
-train(model, add_noise(images), images, 128, 2000, loss_recorder)
+train(model, add_noise(data), data, 64, 2000, loss_recorder)
+train(model, add_noise(data), data, 128, 2000, loss_recorder)
 
 model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
-train(model, add_noise(images), images, 64, 2000, loss_recorder)
-train(model, add_noise(images), images, 128, 2000, loss_recorder)
+train(model, add_noise(data), data, 64, 2000, loss_recorder)
+train(model, add_noise(data), data, 128, 2000, loss_recorder)
 
 
 # long term learning, fine tuning
-# train(model, images, images, 512, 500000, loss_recorder)
+# train(model, data, data, 512, 500000, loss_recorder)
 
 
-# train(joint_model, images, images, 20, n_epochs, loss_recorder)
-# train(model, images, images, 20, n_epochs, loss_recorder)
+# train(joint_model, data, data, 20, n_epochs, loss_recorder)
+# train(model, data, data, 20, n_epochs, loss_recorder)
 
-"""
-tools.train(joint_model, images, [images,images,images,images,images], 20, 200, loss_recorder)
-
-joint_model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
-tools.train(joint_model, images, [images,images,images,images,images], 50, 200, loss_recorder)
-
-joint_model.compile(optimizer=keras.optimizers.SGD(lr=0.001), loss=loss_function)
-tools.train(joint_model, images, [images,images,images,images,images], 100, 200, loss_recorder)
-"""
 
 from pylab import *
 
@@ -238,15 +217,15 @@ def plot_orig_vs_reconst(n=0, ax=None):
       plot = pl.plot
    else:
       plot = ax.plot
-   plot(images[n])
-   plot(model.predict(images[n:n+1])[0])
+   plot(data[n])
+   plot(model.predict(data[n:n+1])[0])
 
 def plot_diff(step=10):
    fig = pl.figure()
-   pl.plot((images[::step] - model.predict(images[::step])).T, 'k', alpha=0.2)
+   pl.plot((data[::step] - model.predict(data[::step])).T, 'k', alpha=0.2)
 
 def plot_top_and_worst(num=3):
-   dist = [(model.evaluate(images[n:n+1],images[n:n+1],verbose=0),n) for n in range(len(images))]
+   dist = [(model.evaluate(data[n:n+1],data[n:n+1],verbose=0),n) for n in range(len(data))]
    dist.sort()
    fig, ax = pl.subplots(num,2)
    for n in range(num):

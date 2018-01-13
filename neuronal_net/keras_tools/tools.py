@@ -100,3 +100,7 @@ class CascadeFactory:
    def get(self):
       return self.factory()
 
+
+def print_layer_outputs(model):
+   for l in model.layers:
+      print(l.name, ": ", l.output_shape[1:])
