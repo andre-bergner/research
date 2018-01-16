@@ -1,4 +1,20 @@
 from functools import reduce
+import inspect
+
+def bind(func, *bound_args, **bound_kws):
+   #func_args = inspect.getargspec(func).args   # deprecated
+   func_args = [a for a in inspect.signature(func).parameters]
+   if not bound_kws.keys().isdisjoint(func_args[:len(bound_args)]):
+      raise Exception('Got ambiguous arguments.')
+   bound_kws.update(zip(func_args, bound_args))
+   for key in bound_kws.keys():
+      func_args.remove(key)
+
+   def bound_func(*args, **kws):
+      kws.update(zip(func_args, args))
+      return func(**bound_kws, **kws)
+
+   return bound_func
 
 
 def _compose2(f, g):
