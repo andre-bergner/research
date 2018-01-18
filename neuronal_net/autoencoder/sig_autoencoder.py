@@ -3,6 +3,10 @@
 # • contractive AE
 # • check distribution of freq, dist of samples-values
 # • supervised AE: train sinusoid to map on circle/torus
+# • do a PCA on sinusoids space to find guess for embedding dimension. Is it 2?
+# • joint or interleaved greedy traing
+# • plot distance matrix for sinusoids  -->  check distance matrix for codes of different sizes
+# • stacked AE vs greedy pre-training?
 # ✔
 
 # OBSERVATIONS
@@ -22,19 +26,8 @@
 #     --> needs a fourth dimension, otherwise two entangled spirals would cut itself
 
 
-
 from gen_autoencoder import *
-from keras_tools import functional_layers as F
-from pylab import imshow
-
-
-def soft_relu(x, leak=0.0):
-   return (0.5+leak) * x  +  (0.5-leak) * K.sqrt(1.0 + x*x)
-
-keras.utils.generic_utils.get_custom_objects().update(
-   {'soft_relu': L.Activation(soft_relu)}
-)
-
+from keras_tools import extra_layers as XL
 
 
 
@@ -59,7 +52,9 @@ loss_function = lambda y_true, y_pred: \
    keras.losses.mean_squared_error(y_true, y_pred) + keras.losses.mean_absolute_error(y_true, y_pred)
 
 #activation = 'tanh'
-activation = lambda x: soft_relu(x,0.1)
+activation = fun.bind(XL.tanhx, alpha=0.1)
+#activation = lambda x: XL.soft_relu(x, 0.1)
+#activation = lambda x: keras.activations.relu(x, 0.1)
 
 
 
@@ -152,7 +147,8 @@ def make_dense_model():
    y = enc1 >> enc2 >> enc3 >> dec3 >> dec2 >> dec1
    y2 = enc1 >> enc2 >> dec2 >> dec1
    y1 = enc1 >> dec1
-   return M.Model([x], [y(x)]), M.Model([x], [y(x), y1(x), y2(x)])
+   #return M.Model([x], [y(x)]), M.Model([x], [y(x), y1(x), y2(x)])
+   return M.Model([x], [(enc2>>dec1)(x)]), None
 
 
 
@@ -170,34 +166,26 @@ print('model shape')
 tools.print_layer_outputs(model)
 
 print('training')
-loss_recorder = tools.LossRecorder()
+loss_recorder = tools.LossRecorder()      # make this global
 
 
 
 #joint_model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
 #train(joint_model, data, data, 32, 2000, loss_recorder)
 
-def add_noise(data, sigma=0.0):
-   return data + sigma * np.random.randn(*data.shape)
-
 model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
-train(model, add_noise(data), data, 64, 3000, loss_recorder)
+train(model, tools.add_noise(data), data, 64, 3000, loss_recorder)
 
 model.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
-train(model, add_noise(data), data, 64, 2000, loss_recorder)
-train(model, add_noise(data), data, 128, 2000, loss_recorder)
+train(model, tools.add_noise(data), data, 64, 2000, loss_recorder)
+train(model, tools.add_noise(data), data, 128, 2000, loss_recorder)
 
 model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
-train(model, add_noise(data), data, 64, 2000, loss_recorder)
-train(model, add_noise(data), data, 128, 2000, loss_recorder)
-
+train(model, tools.add_noise(data), data, 64, 2000, loss_recorder)
+train(model, tools.add_noise(data), data, 128, 2000, loss_recorder)
 
 # long term learning, fine tuning
 # train(model, data, data, 512, 500000, loss_recorder)
-
-
-# train(joint_model, data, data, 20, n_epochs, loss_recorder)
-# train(model, data, data, 20, n_epochs, loss_recorder)
 
 
 from pylab import *
@@ -211,27 +199,12 @@ semilogy(loss_recorder.losses)
 
 import pylab as pl
 
-def plot_orig_vs_reconst(n=0, ax=None):
-   if ax == None:
-      pl.figure()
-      plot = pl.plot
-   else:
-      plot = ax.plot
-   plot(data[n])
-   plot(model.predict(data[n:n+1])[0])
+plot_orig_vs_reconst = fun.bind(tools.plot_target_vs_prediction, model, data, data)
+plot_top_and_worst = fun.bind(tools.plot_top_and_worst, model, data, data)
 
 def plot_diff(step=10):
    fig = pl.figure()
    pl.plot((data[::step] - model.predict(data[::step])).T, 'k', alpha=0.2)
-
-def plot_top_and_worst(num=3):
-   dist = [(model.evaluate(data[n:n+1],data[n:n+1],verbose=0),n) for n in range(len(data))]
-   dist.sort()
-   fig, ax = pl.subplots(num,2)
-   for n in range(num):
-      plot_orig_vs_reconst(dist[n][1], ax[n,0])
-      plot_orig_vs_reconst(dist[-n-1][1], ax[n,1])
-
 
 plot_top_and_worst()
 
