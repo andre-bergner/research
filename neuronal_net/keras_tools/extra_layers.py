@@ -1,4 +1,8 @@
+import keras
+import keras.backend as K
+import keras.layers as L
 from keras.layers import Layer, InputSpec
+
 
 class SliceLike:
 
@@ -70,15 +74,6 @@ class Slice(Layer):
 
 
 
-
-
-
-
-
-
-
-import keras.backend as K
-
 if K.backend() == 'theano':
 
     from theano import tensor as TT
@@ -104,8 +99,6 @@ else:
         return y
 
 
-
-
 class FourierTrafo(Layer):
     """Fourier Transform layer
 
@@ -129,3 +122,16 @@ class FourierTrafo(Layer):
 
     def call(self, inputs):
         return fft(inputs)
+
+
+
+def soft_relu(x, leak=0.0):
+   return (0.5+leak) * x  +  (0.5-leak) * K.sqrt(1.0 + x*x)
+
+def tanhx(x, alpha=0.0):
+   return (1.-alpha) * K.tanh(x) + alpha * x
+
+keras.utils.generic_utils.get_custom_objects().update({
+    'soft_relu': L.Activation(soft_relu),
+    'tanhx': L.Activation(tanhx)
+})
