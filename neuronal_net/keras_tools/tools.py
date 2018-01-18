@@ -1,5 +1,6 @@
 import keras.callbacks
 import numpy as np
+import pylab as pl
 
 
 def gaussian(pos, size=1024, sigma=40):
@@ -104,3 +105,29 @@ class CascadeFactory:
 def print_layer_outputs(model):
    for l in model.layers:
       print(l.name, ": ", l.output_shape[1:])
+
+
+def plot_target_vs_prediction(model, inputs, targets, n=0, ax=None):
+   if ax == None:
+      pl.figure()
+      plot = pl.plot
+   else:
+      plot = ax.plot
+   plot(targets[n], 'k')
+   plot(model.predict(inputs[n:n+1])[0], 'r')
+
+
+def plot_top_and_worst(model, inputs, targets, num=3):
+   dist = [
+      (model.evaluate(inputs[n:n+1],targets[n:n+1],verbose=0), n)
+      for n in range(len(inputs))
+   ]
+   dist.sort()
+   fig, ax = pl.subplots(num,2)
+   for n in range(num):
+      plot_target_vs_prediction(model, inputs, targets, dist[n][1], ax[n,0])
+      plot_target_vs_prediction(model, inputs, targets, dist[-n-1][1], ax[n,1])
+
+
+def add_noise(data, sigma=0.0):
+   return data + sigma * np.random.randn(*data.shape)
