@@ -125,6 +125,57 @@ class FourierTrafo(Layer):
 
 
 
+
+
+
+import os
+os.environ['KERAS_BACKEND'] = 'theano'
+
+import keras
+import keras.models as M
+import keras.layers as L
+import keras.backend as K
+import numpy as np
+
+
+if K.backend() == 'theano':
+
+    import theano
+    from theano import tensor as T
+
+    # http://deeplearning.net/software/theano/library/gradient.html#theano.gradient.jacobian
+    def jacobian(y, x):
+       return theano.gradient.jacobian(y[0,:],x)
+       # TODO assert that shape of y is (1,N) or (N,1)
+       # TODO pick right dimension
+       # J, updates = theano.scan(
+       #     lambda i, y, x : T.grad(y[0,i], x),
+       #     sequences = T.arange(y.shape[1]),
+       #     non_sequences = [y, x]
+       # )
+       # return J
+
+elif K.backend() == 'tensorflow':
+
+    import tensorflow as tf
+
+    # https://github.com/tensorflow/tensorflow/issues/675
+
+    def jacobian(y, x, n=1):
+        y_list = tf.unstack(y, num = n)
+        jacobian_list = [
+            [tf.gradients(y_, x)[0][i] for y_ in tf.unstack(y_list[i])]
+            for i in range(n)
+        ] # list [grad(y0, x), grad(y1, x), ...]
+        return tf.stack(jacobian_list)
+
+else:
+
+    print(K.backend() + ' backend currently not supported.')
+
+
+
+
 def soft_relu(x, leak=0.0):
    return (0.5+leak) * x  +  (0.5-leak) * K.sqrt(1.0 + x*x)
 
