@@ -1,5 +1,4 @@
-# TODO
-# • get 'normal' (conv-)autoencoder for signals working
+# TODO / IDEAS
 # ✔ concatenate with x-fade
 # ✔ try different shifts
 # ✔ try different frame_size's
@@ -10,12 +9,21 @@
 # • use distance between prediction and original as stopping/quality metric
 # • test with Rössler & Lorenz signal
 # • "average" over several succesfully learned models --> common structure?
+# • impact of latent dim on prediction: min size, stability of to big?
+# • measure:
+#   • impact of timestep
+#   • impact of latent dim
+#   • impact of noise
+#   • impact of ...
+# • get 'normal' (conv-)autoencoder for signals working
 # • try to add wavelet-ae outer ring
 # • try loss functions: fft, separate lopass & hipass filters
 # • try adding noise (denoising timeshift AE)
 # • try to increase frame_size using deep-conv with downsampling
 # • try strided prediction (Taken's theorem) --> random sampling?
-
+# • hyper plane time shift AE: learns to predict several signals
+#   --> i.e. add the classic AE feature of learning disjoint entities that lie on a common manifold
+#   --> additional to the manifold of the flow learn neighboring manifolds in the space of dynamical systems
 
 from gen_autoencoder import *
 from keras_tools import extra_layers as XL
@@ -23,12 +31,12 @@ from pylab import imshow
 
 frame_size = 128
 shift = 8
-n_latent = 10
+n_latent = 10  # 8 works well with DAE
 noise_level = 0.01
 
 #act = lambda: L.LeakyReLU(alpha=0.3)
 use_bias = True
-n_epochs = 300
+n_epochs = 200
 
 learning_rate = .1
 # loss_function = 'mean_absolute_error'
@@ -50,8 +58,9 @@ def print_layer_outputs(model):
 def make_signal(n_samples=10000):
    t = np.arange(n_samples)
    sin = np.sin
-   signal = 4. * sin(0.2*t + 6*sin(0.02*t)) # +  5. * sin(t/3.7 + .3) \
-   # signal = 4. * sin(0.2*t + 6*sin(0.02*t) + 4*sin(0.043*t))
+   signal = 4. * sin(0.2*t + 6*sin(0.017*t))
+   # signal = 4. * sin(0.2*t + 6*sin(0.017*t) + 4*sin(0.043*t))
+   # signal = 4. * sin(0.2*t + 6*sin(0.02*t)) # +  5. * sin(t/3.7 + .3)
 
    #signal = 5. * sin(t/3.7 + .3) \
    #       + 3. * sin(t/1.3 + .1) \
@@ -80,9 +89,21 @@ def dense(units, use_bias=True):
 def make_dense_model(sig_len, latent_size):
    x = input_like(in_frames[0])
    #y = dense(sig_len/2) >> dense(sig_len)
-   y = dense(sig_len/2) >> dense(latent_size) >> dense(sig_len/2) >> dense(sig_len)
+   #y = dense(sig_len/2) >> dense(latent_size) >> dense(sig_len/2) >> dense(sig_len)
    # y = dense(sig_len/2) >> dense(sig_len/4) >> dense(latent_size) >> dense(sig_len/4) >> dense(sig_len/2) >> dense(sig_len)
-   return M.Model([x], [y(x)])
+
+   enc1 = dense(sig_len/2)
+   enc2 = dense(sig_len/4)
+   enc3 = dense(latent_size)
+   dec3 = dense(sig_len/2)
+   dec2 = dense(sig_len/4)
+   dec1 = dense(sig_len)
+   # y = enc1 >> enc2 >> enc3 >> dec3 >> dec2 >> dec1
+   # return M.Model([x], [y(x)])
+
+   enc = enc3(enc1(x))
+   y = dec1(dec3(enc))
+   return M.Model([x], [y]), XL.jacobian(enc,x)
 
 
 
@@ -92,7 +113,14 @@ def train(model, inputs, target, batch_size, n_epochs, loss_recorder):
    tools.train(model, inputs, target, batch_size, n_epochs, loss_recorder)
 
 
-model = make_dense_model(len(in_frames[0]), n_latent)
+#model  = make_dense_model(len(in_frames[0]), n_latent)
+model, dhdx  = make_dense_model(len(in_frames[0]), n_latent)
+
+loss_function = lambda y_true, y_pred: \
+   keras.losses.mean_squared_error(y_true, y_pred) + 0.001*K.sum(dhdx*dhdx)
+
+# loss_function = lambda y_true, y_pred: \
+#    keras.losses.mean_squared_error(y_true, y_pred) + keras.losses.mean_absolute_error(y_true, y_pred)
 
 
 print('model shape')
@@ -192,6 +220,8 @@ def plot_prediction(n=2000):
 
 plot_prediction(3000)
 
+# sig = make_signal(60000)
+# pred_sig = predict_signal(60000)
 # import sounddevice as sd
 # sd.play(sig, 44100)
 # sd.play(pred_sig, 44100)
