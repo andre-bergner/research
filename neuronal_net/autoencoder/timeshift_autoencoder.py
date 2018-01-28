@@ -168,7 +168,7 @@ tools.train(model, tools.add_noise(in_frames, noise_level), out_frames[0], 50, n
 
 
 
-
+#
 # nodel.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
 # tools.train(nodel, in_arframes, out_arframes, 20, n_epochs, loss_recorder)
 # 
