@@ -47,7 +47,7 @@ n_pairs = 4000
 
 #act = lambda: L.LeakyReLU(alpha=0.3)
 use_bias = True
-n_epochs = 300
+n_epochs = 50 # 300
 
 learning_rate = .1
 # loss_function = 'mean_absolute_error'
@@ -67,6 +67,7 @@ def print_layer_outputs(model):
       print(l.output_shape[1:])
 
 make_signal = lorenz
+make_signal = lambda n: tools.add_noise(lorenz(n), 0.02)
 
 in_frames, out_frames = make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 # in_frames2, out_frames2 = make_training_set(make_signal2, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
@@ -145,26 +146,26 @@ loss_recorder = tools.LossRecorder()
 
 # joint_model does only work with real auto encoders
 
-model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
-tools.train(model, tools.add_noise(in_frames, noise_level), out_frames[0], 20, n_epochs, loss_recorder)
-
-model.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
-tools.train(model, tools.add_noise(in_frames, noise_level), out_frames[0], 20, n_epochs, loss_recorder)
-
-model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
-tools.train(model, tools.add_noise(in_frames, noise_level), out_frames[0], 50, n_epochs, loss_recorder)
-
-
-# model2.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
-# tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 20, n_epochs, loss_recorder)
+# model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
+# tools.train(model, tools.add_noise(in_frames, noise_level), out_frames[0], 20, n_epochs, loss_recorder)
 # 
-# model2.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
-# tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 20, n_epochs, loss_recorder)
-# 
-# model2.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
-# tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 50, n_epochs, loss_recorder)
+# model.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
+# tools.train(model, tools.add_noise(in_frames, noise_level), out_frames[0], 20, n_epochs, loss_recorder)
 # 
 # model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
+# tools.train(model, tools.add_noise(in_frames, noise_level), out_frames[0], 50, n_epochs, loss_recorder)
+
+
+model2.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
+tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 20, n_epochs, loss_recorder)
+
+model2.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
+tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 20, n_epochs, loss_recorder)
+
+model2.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
+tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 50, n_epochs, loss_recorder)
+
+model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
 
 
 
@@ -259,10 +260,10 @@ plot_prediction(3000, make_signal)
 # sd.play(pred_sig, 44100)
 
 
-def ar_predict_n_steps(start_frame=in_arframes[0], n_pred=1):
-   result = start_frame
-   frame = start_frame
-   for _ in range(n_pred):
-      result = np.concatenate([result, nodel.predict(frame.reshape(1,-1))[0]])
-      frame = result[-frame_size:]
-   return result
+# def ar_predict_n_steps(start_frame=in_arframes[0], n_pred=1):
+#    result = start_frame
+#    frame = start_frame
+#    for _ in range(n_pred):
+#       result = np.concatenate([result, nodel.predict(frame.reshape(1,-1))[0]])
+#       frame = result[-frame_size:]
+#    return result
