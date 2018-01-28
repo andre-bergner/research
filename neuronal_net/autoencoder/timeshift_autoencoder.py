@@ -39,8 +39,11 @@ from test_signals import *
 from pylab import imshow
 
 frame_size = 128
+# with strong downsampling
+# shift = 4
+# n_latent = 12  # 8 works well with DAE on fm-signal
 shift = 8
-n_latent = 10  # 8 works well with DAE
+n_latent = 4  # 8 works well with DAE on fm-signal
 noise_level = 0.01
 # n_pairs = 10000
 n_pairs = 4000
@@ -67,7 +70,8 @@ def print_layer_outputs(model):
       print(l.output_shape[1:])
 
 make_signal = lorenz
-make_signal = lambda n: tools.add_noise(lorenz(n), 0.02)
+#make_signal = lambda n: lorenz(5*n)[::5]
+#make_signal = lambda n: tools.add_noise(lorenz(n), 0.03)
 
 in_frames, out_frames = make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 # in_frames2, out_frames2 = make_training_set(make_signal2, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
@@ -84,6 +88,7 @@ def dense(units, use_bias=True):
 
 
 def make_dense_model(sig_len, latent_size):
+   sig_len = np.size(in_frames[0])
    x = input_like(in_frames[0])
    #y = dense(sig_len/2) >> dense(sig_len)
    #y = dense(sig_len/2) >> dense(latent_size) >> dense(sig_len/2) >> dense(sig_len)
@@ -95,10 +100,11 @@ def make_dense_model(sig_len, latent_size):
    dec3 = dense(sig_len/2)
    dec2 = dense(sig_len/4)
    dec1 = dense(sig_len)
+   encoder = enc1 >> enc3
    y = enc1 >> enc3 >> dec3 >> dec1
    #y = enc1 >> enc2 >> enc3 >> dec3 >> dec2 >> dec1
    out = y(x)
-   return M.Model([x], [out]), M.Model([x], [out, y(out)])
+   return M.Model([x], [out]), M.Model([x], [out, y(out)]), M.Model([x], [encoder(x)])
 
    # enc = enc3(enc1(x))
    # y = dec1(dec3(enc))
@@ -122,7 +128,7 @@ def train(model, inputs, target, batch_size, n_epochs, loss_recorder):
    tools.train(model, inputs, target, batch_size, n_epochs, loss_recorder)
 
 
-model, model2  = make_dense_model(len(in_frames[0]), n_latent)
+model, model2, encoder  = make_dense_model(len(in_frames[0]), n_latent)
 #model, dhdx  = make_dense_model(len(in_frames[0]), n_latent)
 
 # loss_function = lambda y_true, y_pred: \
