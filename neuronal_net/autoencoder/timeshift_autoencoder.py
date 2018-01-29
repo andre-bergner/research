@@ -12,6 +12,7 @@
 # • try generating images/texture
 # • DAE in second order prediction?
 # • contracting AE
+# • impact of latent_space size for noisy system!
 # • use distance between prediction and original as stopping/quality metric
 # • test with Rössler & Lorenz signal
 # • compare against plain nonlineae-AR-networks
@@ -71,9 +72,20 @@ def print_layer_outputs(model):
    for l in model.layers:
       print(l.output_shape[1:])
 
+# customization wrapper for ginzburg-landau generator
+def ginz_lan(n):
+   x = ginzburg_landau(n_samples=n, n_nodes=10, beta=0.1+0.5j)
+   return abs(x[:,:,0] + 1j*x[:,:,1])
+   #return x[:,:,0]
+
 #make_signal = lorenz
 #make_signal = lambda n: lorenz(5*n)[::5]
 make_signal = lambda n: tools.add_noise(lorenz(n), 0.03)
+
+# make_signal = lambda n: ginz_lan(n)[:,5]
+# n_latent = 20
+# frame_size = 200
+# shift = 4
 
 in_frames, out_frames, next_samples = make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 # in_frames2, out_frames2 = make_training_set(make_signal2, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
@@ -95,6 +107,8 @@ def make_dense_model(sig_len, latent_size):
    #y = dense(sig_len/2) >> dense(sig_len)
    #y = dense(sig_len/2) >> dense(latent_size) >> dense(sig_len/2) >> dense(sig_len)
    # y = dense(sig_len/2) >> dense(sig_len/4) >> dense(latent_size) >> dense(sig_len/4) >> dense(sig_len/2) >> dense(sig_len)
+
+   assert latent_size <= sig_len/4
 
    enc1 = dense(sig_len/2)
    enc2 = dense(sig_len/4)
