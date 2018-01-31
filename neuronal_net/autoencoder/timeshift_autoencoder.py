@@ -6,7 +6,8 @@
 # ✔ second-order prediction --> train model and model^2 with frame[+1] and frame[+2], respectively
 # • train two signals simultiously (in same AE) (two attractors)
 # • DAE + L2 loss
-# • plot code
+# ✔ plot code
+# • use AE-aaproach + gready pre-training
 # • plot distances
 # • try generating ginzburg landau (use 1d-conv)
 # • try generating images/texture
@@ -38,6 +39,7 @@
 
 from gen_autoencoder import *
 from keras_tools import extra_layers as XL
+from keras_tools import functional_layers as F
 from test_signals import *
 from pylab import imshow
 
@@ -47,15 +49,16 @@ frame_size = 128
 # n_latent = 12  # 8 works well with DAE on fm-signal
 shift = 8
 n_latent = 4  # 8 works well with DAE on fm-signal
+kern_len = 5
+noise_stddev = 0.00#5
 noise_level = 0.01
 # n_pairs = 10000
-n_pairs = 4000
+n_pairs = 1000
 
 #act = lambda: L.LeakyReLU(alpha=0.3)
 use_bias = True
-n_epochs = 100 # 300
+n_epochs = 50 # 300
 
-learning_rate = .1
 # loss_function = 'mean_absolute_error'
 # loss_function = 'mean_squared_error'
 # loss_function = 'categorical_crossentropy'
@@ -72,41 +75,48 @@ def print_layer_outputs(model):
    for l in model.layers:
       print(l.output_shape[1:])
 
+n_nodes = 20
+n_latent = 16
+
 # customization wrapper for ginzburg-landau generator
 def ginz_lan(n):
-   x = ginzburg_landau(n_samples=n, n_nodes=10, beta=0.1+0.5j)
-   return abs(x[:,:,0] + 1j*x[:,:,1])
-   #return x[:,:,0]
+   x = ginzburg_landau(n_samples=n, n_nodes=n_nodes, beta=0.1+0.5j)
+   #return abs(x[:,:,0] + 1j*x[:,:,1])
+   return x[:,:,0]
 
 #make_signal = lorenz
 #make_signal = lambda n: lorenz(5*n)[::5]
-make_signal = lambda n: tools.add_noise(lorenz(n), 0.03)
+#make_signal = lambda n: tools.add_noise(lorenz(n), 0.03)
 
 # make_signal = lambda n: ginz_lan(n)[:,5]
 # n_latent = 20
 # frame_size = 200
 # shift = 4
 
+make_signal = lambda n: ginz_lan(n)
+
+
 in_frames, out_frames, next_samples = make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 # in_frames2, out_frames2 = make_training_set(make_signal2, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 # in_frames, out_frames = concat([in_frames, in_frames2], [out_frames, out_frames2])
+
+in_frames = in_frames.transpose(0,2,1)
+out_frames = [out_frames[0].transpose(0,2,1), out_frames[1].transpose(0,2,1)]
+
 
 activation = fun.bind(XL.tanhx, alpha=0.1)
 #act = lambda: L.Activation(activation)
 #act = lambda: L.Activation('tanh')
 #act = lambda: L.LeakyReLU(alpha=0.5)
 
-def dense(units, use_bias=True):
-   #return fun.ARGS >> L.Dense(units=int(units), activation=activation, use_bias=use_bias) >> act()
-   return fun.ARGS >> L.Dense(units=int(units), activation=activation, use_bias=use_bias)
+# def dense(units, use_bias=True):
+#    return fun.ARGS >> L.Dense(units=int(units), activation=activation, use_bias=use_bias)
 
+dense = lambda s: F.dense([int(s)], activation=activation, use_bias=use_bias)
 
-def make_dense_model(sig_len, latent_size):
-   sig_len = np.size(in_frames[0])
-   x = input_like(in_frames[0])
-   #y = dense(sig_len/2) >> dense(sig_len)
-   #y = dense(sig_len/2) >> dense(latent_size) >> dense(sig_len/2) >> dense(sig_len)
-   # y = dense(sig_len/2) >> dense(sig_len/4) >> dense(latent_size) >> dense(sig_len/4) >> dense(sig_len/2) >> dense(sig_len)
+def make_dense_model(example_frame, latent_size):
+   sig_len = np.size(example_frame)
+   x = input_like(example_frame)
 
    assert latent_size <= sig_len/4
 
@@ -116,23 +126,55 @@ def make_dense_model(sig_len, latent_size):
    dec3 = dense(sig_len/2)
    dec2 = dense(sig_len/4)
    dec1 = dense(sig_len)
-   ##y = enc1 >> enc2 >> enc3 >> dec3 >> dec2 >> dec1
-   #out = y(x)
-   #return M.Model([x], [out]), M.Model([x], [out, y(out)]), M.Model([x], [encoder(x)])
 
    encoder = enc1 >> enc2 >> enc3
    decoder = dec3 >> dec2 >> dec1
    y = encoder >> decoder
-   enc_x = encoder(x)
-   out = decoder(enc_x)
-   return M.Model([x], [out]), M.Model([x], [out, y(out)]), M.Model([x], [enc_x]), XL.jacobian(enc_x,x)
+   latent = encoder(x)
+   out = decoder(latent)
+   return M.Model([x], [out]), M.Model([x], [out, y(out)]), M.Model([x], [latent]), XL.jacobian(latent,x)
+
+
+dense = lambda s: F.dense(s, activation=activation, use_bias=use_bias)
+conv1d = lambda feat: F.conv1d(int(feat), kern_len, stride=1, activation=activation, use_bias=use_bias)
+
+def make_model_2d(example_frame, latent_size):
+   sig_len = 128
+   #x = F.noisy_input_like(example_frame, noise_stddev)
+   #x = F.noise(noise_stddev)(F.input_like(example_frame))
+   x = F.input_like(example_frame)
+
+   # tp = fun._ >> L.Permute((1, 2))  TODO: try using permute/transpose
+
+   # TODO dropout & batch normalization
+   enc1 = conv1d(sig_len/2)
+   enc2 = conv1d(sig_len/4)
+   #enc3 = conv1d(latent_size)
+   enc3 = F.flatten() >> dense([n_latent])
+
+   # TODO: figure out dimension from shape
+   dec3 = dense([n_nodes, int(sig_len/4)])
+   #dec3 = conv1d(sig_len/4)
+   dec2 = conv1d(sig_len/2)
+   dec1 = conv1d(sig_len)
+
+   # dec4  = up(2) >> conv(8, 1) >> act()
+   # dec4b =          conv(8, kern_len) >> act()
+
+   encoder = enc1 >> enc2 >> enc3
+   decoder = dec3 >> dec2 >> dec1
+   y = encoder >> decoder
+   latent = encoder(x)
+   out = decoder(latent)
+   return M.Model([x], [out]), M.Model([x], [out, y(out)]), M.Model([x], [latent])#, XL.jacobian(latent,x)
+
 
 def make_ar_model(sig_len):
    x = input_like(in_frames[0])
-   d1 = dense(sig_len/2)
-   d2 = dense(sig_len/4)
-   d3 = dense(sig_len/8)
-   d4 = dense(1)
+   d1 = dense([int(sig_len/2)])
+   d2 = dense([int(sig_len/4)])
+   d3 = dense([int(sig_len/8)])
+   d4 = dense([1])
    y = d1 >> d2 >> d3 >> d4
    return M.Model([x], [y(x)])
 
@@ -143,11 +185,15 @@ def train(model, inputs, target, batch_size, n_epochs, loss_recorder):
    tools.train(model, inputs, target, batch_size, n_epochs, loss_recorder)
 
 
-model, model2, encoder, dhdx = make_dense_model(len(in_frames[0]), n_latent)
+#model, model2, encoder, dhdx = make_dense_model(in_frames[0], n_latent)
 
 #model, dhdx, encoder  = make_dense_model(len(in_frames[0]), n_latent)
 #loss_function = lambda y_true, y_pred: \
 #   keras.losses.mean_squared_error(y_true, y_pred) + keras.losses.mean_absolute_error(y_true, y_pred) + 0.02*K.sum(dhdx*dhdx)
+
+# 2D conv-model
+model, model2, encoder = make_model_2d(in_frames[0], n_latent)
+
 
 ar_model = make_ar_model(len(in_frames[0]))
 
@@ -168,13 +214,13 @@ loss_recorder = tools.LossRecorder()
 # joint_model does only work with real auto encoders
 
 #model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
-#tools.train(model, tools.add_noise(in_frames, noise_level), out_frames[0], 20, n_epochs, loss_recorder)
+#tools.train(model, tools.add_noise(in_frames, noise_stddev), out_frames[0], 20, n_epochs, loss_recorder)
 #
 #model.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
-#tools.train(model, tools.add_noise(in_frames, noise_level), out_frames[0], 20, n_epochs, loss_recorder)
+#tools.train(model, tools.add_noise(in_frames, noise_stddev), out_frames[0], 20, n_epochs, loss_recorder)
 #
 #model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
-#tools.train(model, tools.add_noise(in_frames, noise_level), out_frames[0], 50, n_epochs, loss_recorder)
+#tools.train(model, tools.add_noise(in_frames, noise_stddev), out_frames[0], 50, n_epochs, loss_recorder)
 #
 #
 model2.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
@@ -266,7 +312,8 @@ def xfade_append(xs, ys, n_split):
    return concatenate([xs, ys[-n_split:]])
 
 def predict_signal(n_samples, frame):
-   frames = np.array([f[0] for f in generate_n_frames_from(frame.reshape(1,-1), int(n_samples/shift))])
+   frame_ = frame.reshape([1] + list(in_frames[0].shape))
+   frames = np.array([f[0] for f in generate_n_frames_from(frame_, int(n_samples/shift))])
    # pred_sig = concatenate([ f[-shift:] for f in frames[1:] ])
    pred_sig = frame
    for f in frames[0:]:
@@ -281,7 +328,46 @@ def plot_prediction(n=2000, signal_gen=make_signal):
    ax[0].plot(pred_sig[:n], 'r')
    ax[1].plot(sig[:n]-pred_sig[:n])
 
-plot_prediction(3000, make_signal)
+
+
+def xfade_append2(xs, ys, n_split):
+   # assumes time in last dimension
+   num_left = ys.shape[-1] - n_split
+   fade = np.linspace(0, 1, num_left)
+   fade_block = np.outer(np.ones([ys.shape[0]]), fade)
+   xs[:,-num_left:] *= (1-fade_block)
+   xs[:,-num_left:] += ys[:,:num_left] * fade_block
+   return concatenate([xs, ys[:,-n_split:]], axis=-1)
+
+def predict_signal2(n_samples, frame):
+   frame_ = frame.reshape([1] + list(frame.shape))
+   frames = np.array([f[0] for f in generate_n_frames_from(frame_, int(n_samples/shift))])
+   # pred_sig = concatenate([ f[-shift:] for f in frames[1:] ])
+   pred_sig = frame
+   for f in frames[0:]:
+      pred_sig = xfade_append2(pred_sig, f, shift)
+   return pred_sig
+
+def plot_prediction2(n=2000, signal_gen=make_signal):
+   sig = signal_gen(n+100).T
+   pred_sig = predict_signal2(n+100, sig[:,:frame_size])
+   fig, ax = pl.subplots(2,1)
+   ax[0].plot(sig[:n].T, 'k')
+   ax[0].plot(pred_sig[:n].T, 'r')
+   ax[1].plot((sig[:,:n]-pred_sig[:,:n]).T)
+
+def plot_prediction_im(n=2000, signal_gen=make_signal):
+   sig = signal_gen(n+100).T
+   pred_sig = predict_signal2(n+100, sig[:,:frame_size])
+   fig, ax = pl.subplots(3,1)
+   ax[0].imshow(abs(sig[:n]), aspect='auto')
+   ax[1].imshow(abs(pred_sig[:n]), aspect='auto')
+   ax[2].imshow(abs(sig[:,:n]-pred_sig[:,:n]), aspect='auto')
+
+
+
+
+plot_prediction_im(3000, make_signal)
 #plot_prediction(3000, make_signal2)
 
 # sig = make_signal(60000)
