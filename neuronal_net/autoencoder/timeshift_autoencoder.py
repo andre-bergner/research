@@ -24,6 +24,7 @@
 #   • impact of latent dim
 #   • impact of noise
 #   • impact of batch-size
+# • apply 2d-TAE in wavelet-domain
 # • connection between signal time-scale and step-size
 # • batch normalization
 # • get 'normal' (conv-)autoencoder for signals working
@@ -75,14 +76,16 @@ def print_layer_outputs(model):
    for l in model.layers:
       print(l.output_shape[1:])
 
-n_nodes = 20
-n_latent = 16
+frame_size = 64
+n_nodes = 10
+n_latent = 24
+shift = 4
 
 # customization wrapper for ginzburg-landau generator
 def ginz_lan(n):
    x = ginzburg_landau(n_samples=n, n_nodes=n_nodes, beta=0.1+0.5j)
-   #return abs(x[:,:,0] + 1j*x[:,:,1])
-   return x[:,:,0]
+   return abs(x[:,:,0] + 1j*x[:,:,1])
+   #return x[:,:,0]
 
 #make_signal = lorenz
 #make_signal = lambda n: lorenz(5*n)[::5]
@@ -135,34 +138,43 @@ def make_dense_model(example_frame, latent_size):
    return M.Model([x], [out]), M.Model([x], [out, y(out)]), M.Model([x], [latent]), XL.jacobian(latent,x)
 
 
-dense = lambda s: F.dense(s, activation=activation, use_bias=use_bias)
-conv1d = lambda feat: F.conv1d(int(feat), kern_len, stride=1, activation=activation, use_bias=use_bias)
+act = lambda: L.Activation(activation)
+dense = lambda s: F.dense(s, activation=None, use_bias=use_bias)
+conv1d = lambda feat: F.conv1d(int(feat), kern_len, stride=1, activation=None, use_bias=use_bias)
 
 def make_model_2d(example_frame, latent_size):
-   sig_len = 128
+   sig_len = example_frame.shape[-1]
    #x = F.noisy_input_like(example_frame, noise_stddev)
    #x = F.noise(noise_stddev)(F.input_like(example_frame))
    x = F.input_like(example_frame)
 
    # tp = fun._ >> L.Permute((1, 2))  TODO: try using permute/transpose
 
+   #if simple:
+   #   ...
+   #else:
+   #   use dropout and more layers
+
    # TODO dropout & batch normalization
-   enc1 = conv1d(sig_len/2)
-   enc2 = conv1d(sig_len/4)
+   enc1 = conv1d(sig_len/2) >> act() >> F.dropout(0.2)
+   enc2 = conv1d(sig_len/4) >> act() >> F.dropout(0.2)
+   enc2b = conv1d(sig_len/4) >> act() >> F.batch_norm() >> F.dropout(0.2)
    #enc3 = conv1d(latent_size)
-   enc3 = F.flatten() >> dense([n_latent])
+   enc3 = F.flatten() >> dense([n_latent]) >> act() >> F.batch_norm()
+   enc3 = F.flatten() >> dense([n_latent]) >> act() >> F.batch_norm()
 
    # TODO: figure out dimension from shape
-   dec3 = dense([n_nodes, int(sig_len/4)])
+   dec3 = dense([n_nodes, int(sig_len/4)]) >> act() >> F.batch_norm() >> F.dropout(0.2)
    #dec3 = conv1d(sig_len/4)
-   dec2 = conv1d(sig_len/2)
-   dec1 = conv1d(sig_len)
+   dec2b = conv1d(sig_len/4) >> act() >> F.batch_norm() >> F.dropout(0.2)
+   dec2 = conv1d(sig_len/2) >> act() >> F.dropout(0.2)
+   dec1 = conv1d(sig_len) >> act()
 
    # dec4  = up(2) >> conv(8, 1) >> act()
    # dec4b =          conv(8, kern_len) >> act()
 
-   encoder = enc1 >> enc2 >> enc3
-   decoder = dec3 >> dec2 >> dec1
+   encoder = enc1 >> enc2 >> enc2b >> enc3
+   decoder = dec3 >> dec2b >> dec2 >> dec1
    y = encoder >> decoder
    latent = encoder(x)
    out = decoder(latent)
@@ -224,13 +236,13 @@ loss_recorder = tools.LossRecorder()
 #
 #
 model2.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
-tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 20, n_epochs, loss_recorder)
+tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 20, 2*n_epochs, loss_recorder)
 
 model2.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
 tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 20, n_epochs, loss_recorder)
 
-model2.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
-tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 50, n_epochs, loss_recorder)
+#model2.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
+#tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 50, n_epochs, loss_recorder)
 
 model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
 
@@ -360,9 +372,9 @@ def plot_prediction_im(n=2000, signal_gen=make_signal):
    sig = signal_gen(n+100).T
    pred_sig = predict_signal2(n+100, sig[:,:frame_size])
    fig, ax = pl.subplots(3,1)
-   ax[0].imshow(abs(sig[:n]), aspect='auto')
-   ax[1].imshow(abs(pred_sig[:n]), aspect='auto')
-   ax[2].imshow(abs(sig[:,:n]-pred_sig[:,:n]), aspect='auto')
+   ax[0].imshow(log(.1 + abs(sig[:n])), aspect='auto')
+   ax[1].imshow(log(.1 + abs(pred_sig[:n])), aspect='auto')
+   ax[2].imshow(log(.1 + abs(sig[:,:n]-pred_sig[:,:n])), aspect='auto')
 
 
 
