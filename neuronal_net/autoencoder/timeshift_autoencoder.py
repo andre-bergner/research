@@ -7,12 +7,15 @@
 # • train two signals simultiously (in same AE) (two attractors)
 # • DAE + L2 loss
 # ✔ plot code
-# • use AE-aaproach + gready pre-training
+# • improve prediction steps
+# • use just next sample from prediction
+# • compare against LSTM-RNN
+# • use AE-approach + gready pre-training
 # • plot distances
-# • try generating ginzburg landau (use 1d-conv)
+# ✔ try generating ginzburg landau (use 1d-conv)
 # • try generating images/texture
 # • DAE in second order prediction?
-# • contracting AE
+# ✔ contracting AE
 # • start from random position
 #     --> show that manifold is attraktor
 #     --> compare against ARNN (which hopefully blows up)
@@ -60,14 +63,14 @@ frame_size = 128
 shift = 8
 n_latent = 4  # 8 works well with DAE on fm-signal
 kern_len = 5
-noise_stddev = 0.00#5
-noise_level = 0.01
+noise_stddev = 0.03
+noise_level = 0.0#1
 # n_pairs = 10000
-n_pairs = 1000
+n_pairs = 3000
 
 #act = lambda: L.LeakyReLU(alpha=0.3)
 use_bias = True
-n_epochs = 50 # 300
+n_epochs = 100 # 300
 
 # loss_function = 'mean_absolute_error'
 # loss_function = 'mean_squared_error'
@@ -85,8 +88,10 @@ def print_layer_outputs(model):
    for l in model.layers:
       print(l.output_shape[1:])
 
+
+
 n_nodes = 20
-n_latent = 16
+#n_latent = 16
 #frame_size = 64
 #n_latent = 24
 #shift = 4
@@ -98,23 +103,27 @@ def ginz_lan(n):
    return x[:,:,0]
 
 #make_signal = lorenz
-#make_signal = lambda n: lorenz(5*n)[::5]
+make_signal = lambda n: lorenz(1*n)[::1]
 #make_signal = lambda n: tools.add_noise(lorenz(n), 0.03)
+
+# two frequencies should live in 3d space
+# make_signal = lambda n: np.sin(0.05*np.arange(n)) + 0.3*np.sin(0.2212*np.arange(n))
+# n_latent = 3
 
 # make_signal = lambda n: ginz_lan(n)[:,5]
 # n_latent = 20
 # frame_size = 200
 # shift = 4
 
-make_signal = lambda n: ginz_lan(n)
+# make_signal = lambda n: ginz_lan(n)
 
 
-in_frames, out_frames, next_samples = make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
+in_frames, out_frames, next_samples, next_samples2 = make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 # in_frames2, out_frames2 = make_training_set(make_signal2, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 # in_frames, out_frames = concat([in_frames, in_frames2], [out_frames, out_frames2])
 
-in_frames = in_frames.transpose(0,2,1)
-out_frames = [out_frames[0].transpose(0,2,1), out_frames[1].transpose(0,2,1)]
+# in_frames = in_frames.transpose(0,2,1)
+# out_frames = [out_frames[0].transpose(0,2,1), out_frames[1].transpose(0,2,1)]
 
 
 activation = fun.bind(XL.tanhx, alpha=0.1)
@@ -125,38 +134,39 @@ activation = fun.bind(XL.tanhx, alpha=0.1)
 # def dense(units, use_bias=True):
 #    return fun.ARGS >> L.Dense(units=int(units), activation=activation, use_bias=use_bias)
 
-dense = lambda s: F.dense([int(s)], activation=activation, use_bias=use_bias)
+act = lambda: L.Activation(activation)
+dense = lambda s: F.dense(s, activation=None, use_bias=use_bias)
+conv1d = lambda feat: F.conv1d(int(feat), kern_len, stride=1, activation=None, use_bias=use_bias)
+
 
 def make_dense_model(example_frame, latent_size):
    sig_len = np.size(example_frame)
    x = input_like(example_frame)
+   eta = F.noise(noise_stddev)
 
    assert latent_size <= sig_len/4
 
-   enc1 = dense(sig_len/2)
-   enc2 = dense(sig_len/4)
-   enc3 = dense(latent_size)
-   dec3 = dense(sig_len/2)
-   dec2 = dense(sig_len/4)
-   dec1 = dense(sig_len)
+   enc1 = dense([int(sig_len/2)]) >> act()
+   enc2 = dense([int(sig_len/4)]) >> act()
+   enc3 = dense([latent_size]) >> act()
+   dec3 = dense([int(sig_len/2)]) >> act()
+   dec2 = dense([int(sig_len/4)]) >> act()
+   dec1 = dense([sig_len]) >> act()
 
    encoder = enc1 >> enc2 >> enc3
    decoder = dec3 >> dec2 >> dec1
-   y = encoder >> decoder
+   y = eta >> encoder >> decoder
    latent = encoder(x)
    out = decoder(latent)
    return M.Model([x], [out]), M.Model([x], [out, y(out)]), M.Model([x], [latent]), XL.jacobian(latent,x)
 
 
-act = lambda: L.Activation(activation)
-dense = lambda s: F.dense(s, activation=None, use_bias=use_bias)
-conv1d = lambda feat: F.conv1d(int(feat), kern_len, stride=1, activation=None, use_bias=use_bias)
 
 def make_model_2d(example_frame, latent_size, simple=True):
    sig_len = example_frame.shape[-1]
-   #x = F.noisy_input_like(example_frame, noise_stddev)
    #x = F.noise(noise_stddev)(F.input_like(example_frame))
    x = F.input_like(example_frame)
+   eta = F.noise(noise_stddev)
 
    # tp = fun._ >> L.Permute((1, 2))  TODO: try using permute/transpose
 
@@ -203,31 +213,29 @@ def make_model_2d(example_frame, latent_size, simple=True):
 
 def make_ar_model(sig_len):
    x = input_like(in_frames[0])
-   d1 = dense([int(sig_len/2)])
-   d2 = dense([int(sig_len/4)])
-   d3 = dense([int(sig_len/8)])
-   d4 = dense([1])
-   y = d1 >> d2 >> d3 >> d4
-   return M.Model([x], [y(x)])
+   eta = lamda: F.noise(noise_stddev)
+   d1 = dense([int(sig_len/2)]) >> act()
+   d2 = dense([int(sig_len/4)]) >> act()
+   d3 = dense([int(sig_len/8)]) >> act()
+   d4 = dense([1]) >> act()
+   # y = eta() >> d1 >> d2 >> d3 >> d4
+   # return M.Model([x], [y(x)])
+   chain = d1 >> d2 >> d3 >> d4
+   y1 = (eta() >> chain)(x)
+   x2 = L.concatenate([XL.Slice(XL.SLICE_LIKE[:,1:])(x), y1])
+   y2 = chain(x2)
+   return M.Model([x], [y1]), M.Model([x], [y1, y2])
 
 
-def train(model, inputs, target, batch_size, n_epochs, loss_recorder):
-   if type(model.output) == list:
-      target = len(model.output) * [target]
-   tools.train(model, inputs, target, batch_size, n_epochs, loss_recorder)
-
-
-#model, model2, encoder, dhdx = make_dense_model(in_frames[0], n_latent)
-
-#model, dhdx, encoder  = make_dense_model(len(in_frames[0]), n_latent)
+model, model2, encoder, dhdx = make_dense_model(in_frames[0], n_latent)
 #loss_function = lambda y_true, y_pred: \
 #   keras.losses.mean_squared_error(y_true, y_pred) + keras.losses.mean_absolute_error(y_true, y_pred) + 0.02*K.sum(dhdx*dhdx)
 
 # 2D conv-model
-model, model2, encoder = make_model_2d(in_frames[0], n_latent)
+#model, model2, encoder = make_model_2d(in_frames[0], n_latent)
 
 
-ar_model = make_ar_model(len(in_frames[0]))
+ar_model, ar_model2 = make_ar_model(len(in_frames[0]))
 
 print('model shape')
 print_layer_outputs(model)
@@ -261,21 +269,32 @@ tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 32, 2*n
 model2.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
 tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 32, n_epochs, loss_recorder)
 
-#model2.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
-#tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 64, n_epochs, loss_recorder)
+model2.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
+tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 64, n_epochs, loss_recorder)
 
 model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
 
 
 def train_ar_model():
    ar_model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
-   tools.train(ar_model, in_frames, next_samples, 20, n_epochs, loss_recorder)
+   tools.train(ar_model, in_frames, next_samples, 32, n_epochs, loss_recorder)
 
    ar_model.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
-   tools.train(ar_model, in_frames, next_samples, 20, n_epochs, loss_recorder)
+   tools.train(ar_model, in_frames, next_samples, 32, n_epochs, loss_recorder)
 
    ar_model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
-   tools.train(ar_model, in_frames, next_samples, 50, n_epochs, loss_recorder)
+   tools.train(ar_model, in_frames, next_samples, 64, n_epochs, loss_recorder)
+
+
+def train_ar_model2():
+   ar_model2.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
+   tools.train(ar_model2, in_frames, [next_samples, next_samples2], 32, n_epochs, loss_recorder)
+
+   ar_model2.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
+   tools.train(ar_model2, in_frames, [next_samples, next_samples2], 32, n_epochs, loss_recorder)
+
+   ar_model2.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
+   tools.train(ar_model2, in_frames, [next_samples, next_samples2], 64, n_epochs, loss_recorder)
 
 
 def predict_ar_model(start_frame=in_frames[0], n_pred=100):
@@ -399,8 +418,8 @@ def plot_prediction_im(n=2000, signal_gen=make_signal):
 
 
 
-plot_prediction_im(3000, make_signal)
-#plot_prediction(3000, make_signal2)
+#plot_prediction_im(3000, make_signal)
+plot_prediction(3000, make_signal)
 
 # sig = make_signal(60000)
 # pred_sig = predict_signal(60000)

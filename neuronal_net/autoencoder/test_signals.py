@@ -91,7 +91,7 @@ def make_training_set(signal_gen, frame_size=30, n_pairs=1000, shift=1, n_out=1)
    ns = range(n_pairs)
    xs = np.array([sig[n:n+frame_size] for n in ns])
    ys = [np.array([sig[n+k*shift:n+frame_size+k*shift] for n in ns]) for k in range(1,n_out+1)]
-   return xs, ys, sig[frame_size:frame_size+n_pairs].reshape(-1,1)
+   return xs, ys, sig[frame_size:frame_size+n_pairs].reshape(-1,1), sig[frame_size+1:frame_size+1+n_pairs].reshape(-1,1)
 
 
 # [[out1_1, out1_2] , [out2_1, out2_2]] -->  [out1_1+out2_1, out1_2+out2_2]
