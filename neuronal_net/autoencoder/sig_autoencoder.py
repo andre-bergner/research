@@ -5,8 +5,12 @@
 # • supervised AE: train sinusoid to map on circle/torus
 # • do a PCA on sinusoids space to find guess for embedding dimension. Is it 2?
 # • joint or interleaved greedy traing
-# • plot distance matrix for sinusoids  -->  check distance matrix for codes of different sizes
+# • plot distance matrix for sinusoids
+#   -->  check distance matrix for codes of different sizes
+#   -->  use as constrain?!
 # • stacked AE vs greedy pre-training?
+# • generate freq dist --> gen. sinusoids --> test if issues are due to dist or min/max freq
+# • test several combinations of freq-dist, noise-levels, number of samples
 # ✔
 
 # OBSERVATIONS
