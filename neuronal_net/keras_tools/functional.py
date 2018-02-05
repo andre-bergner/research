@@ -42,7 +42,8 @@ class Input:
 
 
 INPUTS = Input()
-ARGS = Input()
+ARGS = INPUTS
+_ = INPUTS
 
  
 # class Pipeable:

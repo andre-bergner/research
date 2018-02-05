@@ -19,7 +19,6 @@ def dense(out_shape, activation=None, use_bias=True):
       return _ >> L.Dense(units=out_shape[0], activation=activation, use_bias=use_bias)
    else:
       units = reduce(lambda x,y: x*y, out_shape)
-      print("units:", units )
       return _ >> L.Dense(units=units, activation=activation, use_bias=use_bias) >> L.Reshape(out_shape)
 
 
