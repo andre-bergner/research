@@ -33,10 +33,13 @@
 from gen_autoencoder import *
 from keras_tools import extra_layers as XL
 from pylab import *
+from test_signals import *
 
 num_data = 512
 sig_len = 128#256
-noise_level = 0#.01
+noise_stddev = 0.002
+noise_level = 0.0#1
+n_latent = 16
 
 learning_rate = .1
 loss_function = 'mean_absolute_error'
@@ -91,6 +94,9 @@ def gen_sinousoid_and_circle(N=512, mod=0):
 data = gen_sinusoids(freq_gen=fun.bind(gen_log_freq, max=0.5*pi, random=True))
 #data = gen_sinusoids(freq_gen=fun.bind(gen_log_freq, min=1, max=0.9*pi))
 
+#data, *_ = make_training_set(lorenz, frame_size=sig_len, n_pairs=4000, shift=16, n_out=1)
+#n_latent = 3
+
 
 
 def dense(units, use_bias=True):
@@ -123,13 +129,15 @@ def make_dense_model():
 
 def make_dense_model():
 
+   eta = lambda: F.noise(noise_stddev)
+
    x1 = L.Input([sig_len])
    x2 = L.Input([sig_len/2])
    x3 = L.Input([sig_len/4])
 
    enc1 = dense(sig_len/2)
    enc2 = dense(sig_len/4)
-   enc3 = dense(16)
+   enc3 = dense(n_latent)
 
    dec3 = dense(sig_len/4)
    dec2 = dense(sig_len/2)
@@ -146,23 +154,29 @@ def make_dense_model():
    #y1 = enc1 >> dec1
    #return M.Model([x], [y(x)]), M.Model([x], [y(x), y1(x), y2(x)])
 
-   y = enc1 >> enc2 >> enc3 >> dec3 >> dec2 >> dec1
-   y1 = enc1 >> dec1
-   y2 = enc2 >> dec2
-   y3 = enc3 >> dec3
+   encoder = enc1 >> enc2 >> enc3
+   decoder = dec3 >> dec2 >> dec1
+   y = eta() >> encoder >> decoder
+   y1 = eta() >> enc1 >> dec1
+   y2 = eta() >> enc2 >> dec2
+   y3 = eta() >> enc3 >> dec3
    return (
       M.Model([x1], [y(x1)]),
+      M.Model([x1], [encoder(x1)]),
       M.Model([x1], [y1(x1)]),
       M.Model([x1], [enc1(x1)]),
       M.Model([x2], [y2(x2)]),
       M.Model([x2], [enc2(x2)]),
       M.Model([x3], [y3(x3)]),
-      M.Model([x1], [(enc1 >> enc2 >> enc3)(x1)]),
+      XL.jacobian(encoder(x1),x1)
    )
 
 
 #model, joint_model = make_dense_model()
-model, layer1, enc1, layer2, enc2, layer3, encoder = make_dense_model()
+model, encoder, layer1, enc1, layer2, enc2, layer3, dhdx = make_dense_model()
+
+loss_function2 = lambda y_true, y_pred: \
+   keras.losses.mean_squared_error(y_true, y_pred) + keras.losses.mean_absolute_error(y_true, y_pred) + 0.02*K.sum(dhdx*dhdx)
 
 
 def train(model, inputs, target, batch_size, n_epochs, loss_recorder):
@@ -178,7 +192,7 @@ print('training')
 loss_recorder = tools.LossRecorder()      # make this global
 
 
-def train_model(model, data, fast=False):
+def train_model(model, data, fast=False, loss_function=loss_function):
    model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
    train(model, tools.add_noise(data, noise_level), data, 64, 3000, loss_recorder)
 
@@ -199,6 +213,7 @@ code1 = enc1.predict(data)
 train_model(layer2, code1, fast=True)
 code2 = enc2.predict(code1)
 train_model(layer3, code2, fast=True)
+#train_model(model, data, loss_function=loss_function2)  # use contractive
 train_model(model, data)
 code3 = encoder.predict(data)
 
@@ -220,16 +235,13 @@ def plot_diff(step=10):
 
 plot_top_and_worst()
 
-#from keras.utils import plot_model
-#plot_model(model, to_file='sig_autoencoder.png')
-
 
 def dist(x,y):
    d = x - y
    return sqrt(np.dot(d,d))/len(x)
 
 print("computing distances...")
-distances0 = np.array([[dist(x,y) for x in data] for y in data])
-distances1 = np.array([[dist(x,y) for x in code1] for y in code1])
-distances2 = np.array([[dist(x,y) for x in code2] for y in code2])
-distances3 = np.array([[dist(x,y) for x in code3] for y in code3])
+#distances0 = np.array([[dist(x,y) for x in data] for y in data])
+#distances1 = np.array([[dist(x,y) for x in code1] for y in code1])
+#distances2 = np.array([[dist(x,y) for x in code2] for y in code2])
+#distances3 = np.array([[dist(x,y) for x in code3] for y in code3])
