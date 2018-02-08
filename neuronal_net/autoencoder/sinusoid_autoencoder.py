@@ -139,6 +139,13 @@ def make_dense_model():
    enc2 = dense(sig_len/4)
    enc3 = dense(n_latent)
 
+   # deeper
+   # wavelet-shell
+   # CNN
+   # Dropout
+   # MaxPooling
+   # BatchNorm
+
    dec3 = dense(sig_len/4)
    dec2 = dense(sig_len/2)
    dec1 = dense(sig_len)

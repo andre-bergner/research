@@ -37,6 +37,8 @@
 #   • impact of noise
 #   • impact of batch-size
 # • apply 2d-TAE in wavelet-domain
+# • try to synchroinze to trained models, e.g. two Rössler oscillators
+# • train more models: Laser, Rössler, Bisrtin Neurons, Chua...
 # • connection between signal time-scale and step-size
 # • batch normalization
 # • get 'normal' (conv-)autoencoder for signals working
