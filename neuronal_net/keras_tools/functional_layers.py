@@ -11,6 +11,10 @@ sys.path.append('../')
 from keras_tools import functional as fun
 
 
+def input_like(x):
+   return L.Input(shape=x.shape)
+
+
 def dense(out_shape, activation=None, use_bias=True):
    assert len(out_shape) > 0
    _ = fun._
