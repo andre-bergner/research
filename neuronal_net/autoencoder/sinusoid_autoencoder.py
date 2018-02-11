@@ -14,6 +14,8 @@
 # ✔
 
 # OBSERVATIONS
+# • mse(x,y) + mse(x',y')  improves learning of fine structure
+# • large amplitudes are harder to learn, or require smaller learning_rates in the beginning
 # • logarithmicly distributed frequencies:
 #   • low frequencies are learned very well
 #   • the higher the frequency the harder to learn
@@ -41,12 +43,18 @@ noise_stddev = 0.002
 noise_level = 0.0#1
 n_latent = 16
 
-learning_rate = .1
-loss_function = 'mean_absolute_error'
+#loss_function = 'mean_absolute_error'
 # loss_function = 'mean_squared_error'
 # loss_function = 'categorical_crossentropy'
-loss_function = lambda y_true, y_pred: \
-   keras.losses.mean_squared_error(y_true, y_pred) + keras.losses.mean_absolute_error(y_true, y_pred)
+# loss_function = lambda y_true, y_pred: \
+#    keras.losses.mean_squared_error(y_true, y_pred) + keras.losses.mean_absolute_error(y_true, y_pred)
+
+mse = keras.losses.mean_squared_error
+mae = keras.losses.mean_absolute_error
+diff = lambda x: x[:,1:] - x[:,:-1]
+loss_function = lambda y_true, y_pred: mse(y_true, y_pred) + mse(diff(y_true), diff(y_pred))# + mse(diff(diff(y_true)), diff(diff(y_pred)))
+#loss_function = lambda y_true, y_pred: mae(y_true, y_pred) + mae(diff(y_true), diff(y_pred)) #+ mae(diff(diff(y_true)), diff(diff(y_pred)))
+
 
 #activation = 'tanh'
 activation = fun.bind(XL.tanhx, alpha=0.1)
@@ -71,7 +79,7 @@ def sinusoid(freq, mod=0):
    return 0.8 * np.sin(freq*t + mod*sin(0.1*t))
 
 def gen_sinusoids(N=512, freq_gen=gen_log_freq, signal_gen=sinusoid):
-   return np.array([signal_gen(f) for f in freq_gen(N)])
+   return 1*np.array([signal_gen(f) for f in freq_gen(N)])
 
 def random_sinusoid(num_modes=1, decay=0.02):
    sig = np.zeros((sig_len))
@@ -98,9 +106,9 @@ data = gen_sinusoids(freq_gen=fun.bind(gen_log_freq, max=0.5*pi, random=True))
 #n_latent = 3
 
 
+act = lambda: L.Activation(activation)
 
-def dense(units, use_bias=True):
-   return fun.ARGS >> L.Dense(units=int(units), activation=activation, use_bias=use_bias)
+def dense(units, *args, **kwargs): return F.dense([int(units)], *args, **kwargs)
 
 """
 def make_dense_model():
@@ -131,13 +139,36 @@ def make_dense_model():
 
    eta = lambda: F.noise(noise_stddev)
 
+   x = L.Input([sig_len])
+
+   enc1 = dense(sig_len/2) >> act()
+   enc2 = dense(sig_len/4) >> act()
+   enc3 = dense(n_latent) >> act()
+   dec3 = dense(sig_len/4) >> act()
+   dec2 = dense(sig_len/2) >> act()
+   dec1 = dense(sig_len)
+
+   encoder = enc1 >> enc2 >> enc3
+   decoder = dec3 >> dec2 >> dec1
+   y = eta() >> encoder >> decoder
+   y1 = eta() >> enc1 >> dec1
+   y2 = eta() >> enc1 >> enc2 >> dec2 >> dec1
+   return  M.Model([x], [y(x)]), M.Model([x], [y(x), y(y(x))])
+   #return  M.Model([x], [y(x)]), M.Model([x], [y(x), y(y(x)), y(y(y(x)))])
+   #return  M.Model([x], [y(x)]), M.Model([x], [y(x), y1(x), y2(x), y(y(x))])
+
+
+def make_dense_gready_model():
+
+   eta = lambda: F.noise(noise_stddev)
+
    x1 = L.Input([sig_len])
    x2 = L.Input([sig_len/2])
    x3 = L.Input([sig_len/4])
 
-   enc1 = dense(sig_len/2)
-   enc2 = dense(sig_len/4)
-   enc3 = dense(n_latent)
+   enc1 = dense(sig_len/2) >> act()
+   enc2 = dense(sig_len/4) >> act()
+   enc3 = dense(n_latent) >> act()
 
    # deeper
    # wavelet-shell
@@ -146,9 +177,9 @@ def make_dense_model():
    # MaxPooling
    # BatchNorm
 
-   dec3 = dense(sig_len/4)
-   dec2 = dense(sig_len/2)
-   dec1 = dense(sig_len)
+   dec3 = dense(sig_len/4) >> act()
+   dec2 = dense(sig_len/2) >> act()
+   dec1 = dense(sig_len) >> act()
 
    # enc1.activity_regularizer = keras.regularizers.l2(l=0.01)
    # enc2.activity_regularizer = keras.regularizers.l2(l=0.01)
@@ -179,8 +210,8 @@ def make_dense_model():
    )
 
 
-#model, joint_model = make_dense_model()
-model, encoder, layer1, enc1, layer2, enc2, layer3, dhdx = make_dense_model()
+model, model2 = make_dense_model()
+#model, encoder, layer1, enc1, layer2, enc2, layer3, dhdx = make_dense_model()
 
 loss_function2 = lambda y_true, y_pred: \
    keras.losses.mean_squared_error(y_true, y_pred) + keras.losses.mean_absolute_error(y_true, y_pred) + 0.02*K.sum(dhdx*dhdx)
@@ -214,15 +245,32 @@ def train_model(model, data, fast=False, loss_function=loss_function):
    train(model, tools.add_noise(data, noise_level), data, 64, 2000, loss_recorder)
    train(model, tools.add_noise(data, noise_level), data, 128, 2000, loss_recorder)
 
+def train_gready():
 
-train_model(layer1, data, fast=True)
-code1 = enc1.predict(data)
-train_model(layer2, code1, fast=True)
-code2 = enc2.predict(code1)
-train_model(layer3, code2, fast=True)
-#train_model(model, data, loss_function=loss_function2)  # use contractive
-train_model(model, data)
-code3 = encoder.predict(data)
+   train_model(layer1, data, fast=True)
+   code1 = enc1.predict(data)
+   train_model(layer2, code1, fast=True)
+   code2 = enc2.predict(code1)
+   train_model(layer3, code2, fast=True)
+   #train_model(model, data, loss_function=loss_function2)  # use contractive
+   train_model(model, data)
+   code3 = encoder.predict(data)
+
+   return code1, code2, code3
+
+#code1, code2, code3 = train_gready()
+
+
+model2.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
+train(model2, data, data, 64, 2000, loss_recorder)
+
+model2.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
+train(model2, data, data, 64, 3000, loss_recorder)
+
+model2.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
+train(model2, data, data, 64, 2000, loss_recorder)
+
+model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
 
 # long term learning, fine tuning
 # train(model, data, data, 512, 500000, loss_recorder)
@@ -230,7 +278,7 @@ code3 = encoder.predict(data)
 
 
 figure()
-semilogy(loss_recorder.losses)
+semilogy(loss_recorder.losses, 'k')
 
 
 plot_orig_vs_reconst = fun.bind(tools.plot_target_vs_prediction, model, data, data)
