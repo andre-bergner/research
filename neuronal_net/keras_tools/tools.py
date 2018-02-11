@@ -104,7 +104,7 @@ class CascadeFactory:
 
 def print_layer_outputs(model):
    for l in model.layers:
-      print(l.name, ": ", l.output_shape[1:])
+      print("{:>20} : {}".format(l.name, l.output_shape[1:]))
 
 
 def plot_target_vs_prediction(model, inputs, targets, n=0, ax=None):
