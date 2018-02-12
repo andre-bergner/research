@@ -6,13 +6,18 @@ from keras.layers import Layer, InputSpec
 
 class SliceLike:
 
-    def __init__(self):
-        self._idx = None
-
     def __getitem__(self, idx):
         return idx
 
 SLICE_LIKE = SliceLike()
+
+
+class SliceFactory:
+
+    def __getitem__(self, idx):
+        return Slice(idx)
+
+SLICE = SliceFactory()
 
 
 class Slice(Layer):

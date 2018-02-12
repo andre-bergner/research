@@ -60,8 +60,8 @@ def analysis_wavelet_node(): return make_analysis_node(2)
 
 def analysis_wavelet_pair():
    node = make_analysis_node(1,2*num_features)
-   take_feat_0 = XL.Slice(XL.SLICE_LIKE[:,:,0:num_features])
-   take_feat_1 = XL.Slice(XL.SLICE_LIKE[:,:,num_features:num_features+num_features])
+   take_feat_0 = XL.SLICE[:,:,0:num_features]
+   take_feat_1 = XL.SLICE[:,:,num_features:num_features+num_features]
 
    def splitter(x):
       node_v = node(x)
@@ -184,6 +184,7 @@ size = 32
 model = build_dyadic_grid(5, input_len=size, encoder_size=encoder_size)
 model.compile(optimizer=keras.optimizers.SGD(lr=.02), loss='mean_absolute_error')
 
+#tools.print_layer_outputs(model)
 
 loss_recorder = tools.LossRecorder()
 data = test_signals.decaying_sinusoids(size)
