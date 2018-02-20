@@ -31,6 +31,8 @@ Timeshift operator E{n} x[k] := x[k+n]
 
 ## Points to discuss
 
+* a sound (sample) is not a particular sample from a n-dim space but a manifold --> sovlves the size problem
+
 * laveraging the fact that autoencoder learn manifolds, in particular DAE learn to project onto manifolds
 * Dynamical systems
 * Taken's embedding theorem
