@@ -15,6 +15,8 @@
 # ✔ try generating ginzburg landau (use 1d-conv)
 # • try generating images/texture
 # • DAE in second order prediction?
+# • use shifts of 50% or 100%, average with interleaved independent predictions
+# • use CNN instead of dense
 # ✔ contracting AE
 # • start from random position
 #     --> show that manifold is attraktor
@@ -52,10 +54,10 @@
 #   --> i.e. add the classic AE feature of learning disjoint entities that lie on a common manifold
 #   --> additional to the manifold of the flow learn neighboring manifolds in the space of dynamical systems
 
-from gen_autoencoder import *
+from imports import *
 from keras_tools import extra_layers as XL
 from keras_tools import functional_layers as F
-from test_signals import *
+#from test_signals import *
 from pylab import imshow
 
 frame_size = 128
@@ -85,13 +87,6 @@ loss_function = lambda y_true, y_pred: \
    # TODO lo/hipass: K.conv1d(x, kernel, strides=1, padding='valid', data_format=None, dilation_rate=1)
 
 
-
-def print_layer_outputs(model):
-   for l in model.layers:
-      print(l.output_shape[1:])
-
-
-
 n_nodes = 20
 #n_latent = 16
 #frame_size = 64
@@ -105,7 +100,7 @@ def ginz_lan(n):
    return x[:,:,0]
 
 #make_signal = lorenz
-make_signal = lambda n: lorenz(1*n)[::1]
+make_signal = lambda n: TS.lorenz(1*n)[::1]
 #make_signal = lambda n: tools.add_noise(lorenz(n), 0.03)
 
 # two frequencies should live in 3d space
@@ -120,7 +115,7 @@ make_signal = lambda n: lorenz(1*n)[::1]
 # make_signal = lambda n: ginz_lan(n)
 
 
-in_frames, out_frames, next_samples, next_samples2 = make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
+in_frames, out_frames, next_samples, next_samples2 = TS.make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 # in_frames2, out_frames2 = make_training_set(make_signal2, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 # in_frames, out_frames = concat([in_frames, in_frames2], [out_frames, out_frames2])
 
@@ -143,7 +138,7 @@ conv1d = lambda feat: F.conv1d(int(feat), kern_len, stride=1, activation=None, u
 
 def make_dense_model(example_frame, latent_size):
    sig_len = np.size(example_frame)
-   x = input_like(example_frame)
+   x = F.input_like(example_frame)
    eta = F.noise(noise_stddev)
 
    assert latent_size <= sig_len/4
@@ -214,8 +209,8 @@ def make_model_2d(example_frame, latent_size, simple=True):
 
 
 def make_ar_model(sig_len):
-   x = input_like(in_frames[0])
-   eta = lamda: F.noise(noise_stddev)
+   x = F.input_like(in_frames[0])
+   eta = lambda: F.noise(noise_stddev)
    d1 = dense([int(sig_len/2)]) >> act()
    d2 = dense([int(sig_len/4)]) >> act()
    d3 = dense([int(sig_len/8)]) >> act()
@@ -240,7 +235,7 @@ model, model2, encoder, dhdx = make_dense_model(in_frames[0], n_latent)
 ar_model, ar_model2 = make_ar_model(len(in_frames[0]))
 
 print('model shape')
-print_layer_outputs(model)
+tools.print_layer_outputs(model)
 
 print('training')
 loss_recorder = tools.LossRecorder()
