@@ -11,12 +11,10 @@
 #
 # TODOS
 #  ✔ non-stationary (decaying) signals
-#  • compare against probalistic ARNN (PARNN)
+#  ✔ compare against probalistic ARNN (PARNN)
 #  • deeper
 #  • compare noisy signals
 #  • wavelet-orbit
-
-#2 timescle tae couples
 
 from imports import *
 from predictors import *

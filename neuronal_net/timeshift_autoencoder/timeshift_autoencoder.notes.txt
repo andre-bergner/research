@@ -31,6 +31,7 @@ TODO / IDEAS
 • compare against LSTM-RNN
 • use AE-approach + gready pre-training
 • plot distances
+• try out two coupled TAEs working on different time scales, coupling: common latent space or master-slave
 ✔ try generating ginzburg landau (use 1d-conv)
 • try generating images/texture
 • DAE in second order prediction?
