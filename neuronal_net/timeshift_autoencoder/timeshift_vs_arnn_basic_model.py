@@ -19,6 +19,7 @@
 from imports import *
 from predictors import *
 from metrics import *
+from models import *
 from keras_tools.wavfile import *
 import pylab as pl
 import sounddevice as sd
@@ -40,8 +41,6 @@ signal_gen = lambda n: TS.lorenz(resample*n)[::resample]
 # frame_size = 32
 # shift = 2
 
-
-
 #signal_gen = lambda n: np.sin(0.05*np.arange(n)) + 0.3*np.sin(0.2212*np.arange(n))
 #n_latent = 8
 
@@ -61,82 +60,17 @@ signal_gen = lambda n: TS.lorenz(resample*n)[::resample]
 #shift = 3
 
 
-activation = fun.bind(XL.tanhx, alpha=0.1)
-
 loss_function = lambda y_true, y_pred: \
    keras.losses.mean_squared_error(y_true, y_pred) + keras.losses.mean_absolute_error(y_true, y_pred)
 
+arnn_model, parnn_model, tae_model, _ = models({
+   "frame_size": frame_size,
+   "shift": shift,
+   "n_latent": n_latent,
+   "in_noise_stddev": in_noise_stddev,
+   "code_noise_stddev": code_noise_stddev,
+})
 
-act = lambda: L.Activation(activation)
-softmax = lambda: L.Activation(L.activations.softmax)
-eta1 = lambda: F.noise(in_noise_stddev)
-eta2 = lambda: F.noise(code_noise_stddev)
-
-def arnn_model(example_frame):
-   x = F.input_like(example_frame)
-
-   d1 = F.dense([int(frame_size/2)]) >> act()
-   d2 = F.dense([int(frame_size/4)]) >> act()
-   d3 = F.dense([n_latent]) >> act()
-   d4 = F.dense([int(frame_size/2)]) >> act()
-   d5 = F.dense([int(frame_size/4)]) >> act()
-   d6 = F.dense([1]) >> act()
-
-   #d1 = F.dense([int(frame_size/2)]) >> act()
-   #d2 = F.dense([int(frame_size/4)]) >> act()
-   #d3 = F.dense([int(frame_size/8)]) >> act()
-   #d4 = F.dense([1]) >> act()
-   # y = eta() >> d1 >> d2 >> d3 >> d4
-   # return M.Model([x], [y(x)])
-   chain = d1 >> d2 >> d3 >> eta2() >> d4 >> d5 >> d6
-   y1 = (eta1() >> chain)(x)
-   x2 = L.concatenate([XL.Slice(XL.SLICE_LIKE[:,1:])(x), y1])
-   y2 = chain(x2)
-
-   return M.Model([x], [y1]), M.Model([x], [y1, y2])
-
-
-def parnn_model(example_frame, bins=64):
-   x = F.input_like(example_frame)
-
-   d1 = F.dense([int(frame_size/2)]) >> act()
-   d2 = F.dense([int(frame_size/2)]) >> act()
-   d3 = F.dense([int(frame_size/4)]) >> act()
-   d4 = F.dense([int(frame_size/4)]) >> act()
-   d5 = F.dense([bins]) >> softmax()
-
-   chain = eta1() >> d1 >> d2 >> d3 >> d4 >> d5
-   y1 = chain(x)
-
-   return M.Model([x], [chain(x)])
-
-
-def tae_model(example_frame):
-   frame_size = np.size(example_frame)
-   x = F.input_like(example_frame)
-
-   enc1 = F.dense([int(frame_size/2)]) >> act()
-   enc2 = F.dense([int(frame_size/4)]) >> act()
-   enc3 = F.dense([n_latent]) >> act()
-   dec3 = F.dense([int(frame_size/2)]) >> act()
-   dec2 = F.dense([int(frame_size/4)]) >> act()
-   dec1 = F.dense([frame_size]) >> act()
-
-   encoder = enc1 >> enc2 >> enc3
-   decoder = dec3 >> dec2 >> dec1
-   y = eta1() >> encoder >> eta2() >> decoder
-   latent = encoder(x)
-   out = decoder(latent)
-
-   return M.Model([x], [out]), M.Model([x], [out, y(out)]), M.Model([x], [latent]), XL.jacobian(latent,x)
-
-
-def p2x(p):
-   return np.inner(np.linspace(-1,1,len(p)), p)
-
-def x2p(x, n=64, dev=.02):
-   p = np.exp( -(np.linspace(-1,1,n)-x)**2 / dev**2 )
-   return p / sum(p)
 
 def predict_par_model(model, start_frame, n_samples):
    frame_size = start_frame.shape[-1]
@@ -149,14 +83,13 @@ def predict_par_model(model, start_frame, n_samples):
 
 
 
-
 in_frames, out_frames, next_samples, next_samples2 = TS.make_training_set(
    signal_gen, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 
 next_samples_p = np.array([x2p(x) for x in next_samples])
 
 
-arnn, arnn2 = arnn_model(in_frames[0])
+arnn = arnn_model(in_frames[0])
 parnn = parnn_model(in_frames[0])
 tae, *_ = tae_model(in_frames[0])
 tae21, tae22, *_ = tae_model(in_frames[0])
