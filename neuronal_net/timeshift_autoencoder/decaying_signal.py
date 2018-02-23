@@ -30,46 +30,15 @@ diff = lambda x: x[:,1:] - x[:,:-1]
 loss_function = lambda y_true, y_pred: \
    mae(y_true, y_pred) + mse(y_true, y_pred) + mse(diff(y_true), diff(y_pred))# + mse(diff(diff(y_true)), diff(diff(y_pred)))
 
+arnn_model, _, tae_model, tae_model2 = models({
+   "frame_size": frame_size,
+   "shift": shift,
+   "n_latent": n_latent,
+   "in_noise_stddev": in_noise_stddev,
+   "code_noise_stddev": code_noise_stddev,
+})
 
-act = lambda: L.Activation(activation)
-eta1 = lambda: F.noise(in_noise_stddev)
-eta2 = lambda: F.noise(code_noise_stddev)
-
-def arnn_model(example_frame):
-   x = F.input_like(example_frame)
-
-   d1 = F.dense([int(frame_size/2)]) >> act()
-   d2 = F.dense([int(frame_size/4)]) >> act()
-   d3 = F.dense([n_latent]) >> act()
-   d4 = F.dense([int(frame_size/2)]) >> act()
-   d5 = F.dense([int(frame_size/4)]) >> act()
-   d6 = F.dense([1]) #>> act()
-
-   chain = eta1() >> d1 >> d2 >> d3 >> eta2() >> d4 >> d5 >> d6
-
-   return M.Model([x], [chain(x)])
-
-
-def tae_model(example_frame):
-   frame_size = np.size(example_frame)
-   x = F.input_like(example_frame)
-
-   enc1 = F.dense([int(frame_size/2)]) >> act()
-   enc2 = F.dense([int(frame_size/4)]) >> act() >> F.dropout(0.4) # >> F.batch_norm() >> F.dropout(0.2)
-   enc3 = F.dense([int(frame_size/8)]) >> act() >> F.dropout(0.4) # >> F.batch_norm() >> F.dropout(0.2)
-   enc4 = F.dense([n_latent]) >> act()
-   dec4 = F.dense([int(frame_size/8)]) >> act() >> F.dropout(0.4) #>> F.batch_norm() >> F.dropout(0.2)
-   dec3 = F.dense([int(frame_size/2)]) >> act() >> F.dropout(0.4) #>> F.batch_norm() >> F.dropout(0.2)
-   dec2 = F.dense([int(frame_size/4)]) >> act()
-   dec1 = F.dense([frame_size]) #>> act()
-
-   encoder = enc1 >> enc2 >> enc3 >> enc4
-   decoder = dec4 >> dec3 >> dec2 >> dec1
-   y = eta1() >> encoder >> eta2() >> decoder
-   latent = encoder(x)
-   out = decoder(latent)
-
-   return M.Model([x], [out]), M.Model([x], [out, y(out)]), M.Model([x], [latent])#, XL.jacobian(latent,x)
+tae_model = tae_model2
 
 
 def normalize_data(x, y):
@@ -111,10 +80,10 @@ taen = normalizing_predict(tae)
 
 predict_signal = predict_signal2
 
-arnn_metrics = Metrics(fun.bind(predict_ar_model, arnn, start_frame=in_frames[0], n_samples=2048))
+#arnn_metrics = Metrics(fun.bind(predict_ar_model, arnn, start_frame=in_frames[0], n_samples=2048))
 #tae_metrics = Metrics(fun.bind(predict_signal, tae, start_frame=in_frames[0], shift=shift, n_samples=2048))
 tae_metrics = Metrics(fun.bind(predict_signal, taen, start_frame=in_frames[0], shift=shift, n_samples=2048))
-tae2_metrics = Metrics(fun.bind(predict_signal, tae21, start_frame=in_frames[0], shift=shift, n_samples=2048))
+#tae2_metrics = Metrics(fun.bind(predict_signal, tae21, start_frame=in_frames[0], shift=shift, n_samples=2048))
 
 
 def train_model(model, ins, outs, metrics_recorder):
