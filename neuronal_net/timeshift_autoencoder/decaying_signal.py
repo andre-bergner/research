@@ -4,16 +4,16 @@ from metrics import *
 from keras_tools.wavfile import *
 import pylab as pl
 
-#signal_gen = lambda n: np.exp(-0.002*np.arange(n)) * np.sin(0.2*np.arange(n) + 6*np.sin(0.017*np.arange(n)))
+signal_gen = lambda n: np.exp(-0.002*np.arange(n)) * np.sin(0.2*np.arange(n) + 6*np.sin(0.017*np.arange(n)))
 #signal_gen = lambda n: np.linspace(1,0,n) * np.sin(0.2*np.arange(n) + 6*np.sin(0.017*np.arange(n)))
-signal_gen = lambda n: np.sin(0.008*np.arange(n)) * np.sin(0.2*np.arange(n) + 6*np.sin(0.017*np.arange(n)))
+#signal_gen = lambda n: np.sin(0.008*np.arange(n)) * np.sin(0.2*np.arange(n) + 6*np.sin(0.017*np.arange(n)))
 #signal_gen = lambda n: .5*(.8+.2*np.cos(0.008*np.arange(n))) * np.sin(0.2*np.arange(n) + 6*np.sin(0.017*np.arange(n)))
 
-frame_size = 256
-shift = 128
-n_latent = 8
-in_noise_stddev = 0.05
-code_noise_stddev = 0.01
+frame_size = 128
+shift = 64
+n_latent = 10
+in_noise_stddev = 0.02
+code_noise_stddev = 0.001
 n_pairs = 2000
 n_epochs = 300
 
@@ -21,8 +21,14 @@ n_epochs = 300
 
 activation = fun.bind(XL.tanhx, alpha=0.1)
 
+#loss_function = lambda y_true, y_pred: \
+#   keras.losses.mean_squared_error(y_true, y_pred) + keras.losses.mean_absolute_error(y_true, y_pred)
+
+mse = keras.losses.mean_squared_error
+mae = keras.losses.mean_absolute_error
+diff = lambda x: x[:,1:] - x[:,:-1]
 loss_function = lambda y_true, y_pred: \
-   keras.losses.mean_squared_error(y_true, y_pred) + keras.losses.mean_absolute_error(y_true, y_pred)
+   mae(y_true, y_pred) + mse(y_true, y_pred) + mse(diff(y_true), diff(y_pred))# + mse(diff(diff(y_true)), diff(diff(y_pred)))
 
 
 act = lambda: L.Activation(activation)
