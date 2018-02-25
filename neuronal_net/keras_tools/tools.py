@@ -57,13 +57,13 @@ class Logger(keras.callbacks.Callback):
    def __init__(self):
       self.bar_size = 30
 
-   def on_epoch_begin(self, epoch, logs={}):
+   def on_epoch_end(self, epoch, logs={}):
       num_epochs = self.params['epochs']
       filled_bars = int(epoch * self.bar_size / num_epochs) + 1
       nonfilled_bars = self.bar_size - filled_bars
       print( '\r', end='' )
       print( 'training: [' + filled_bars*'●' + nonfilled_bars*' ' + ']  ', end='' )
-      print( 'Epoch {0}/{1}'. format(epoch+1, num_epochs), end='')
+      print( 'Epoch {0}/{1} (loss={2:.3})'. format(epoch+1, num_epochs, logs.get('loss')), end='')
       print( '', end='', flush=True )
 
    def on_train_end(self, logs={}):
