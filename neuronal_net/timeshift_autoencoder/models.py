@@ -98,7 +98,7 @@ def models(config=default_configuration):
       decoder = dec4 >> dec3 >> dec2 >> dec1
       chain = eta1() >> encoder >> eta2() >> decoder
       latent = encoder(x)
-      out = decoder(latent)
+      out = chain(x)
 
       return M.Model([x], [out]), M.Model([x], [out, chain(out)]), M.Model([x], [latent])#, XL.jacobian(latent,x)
 
@@ -118,7 +118,7 @@ def models(config=default_configuration):
       decoder = dec3 >> dec2 >> dec1
       chain = eta1() >> encoder >> eta2() >> decoder
       latent = encoder(x)
-      out = decoder(latent)
+      out = chain(x)
 
       return M.Model([x], [out]), M.Model([x], [out, chain(out)]), M.Model([x], [latent]), XL.jacobian(latent,x)
 
