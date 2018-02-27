@@ -48,8 +48,8 @@ make_signal = lambda n: TS.lorenz(1*n)[::1]
 #make_signal = lambda n: tools.add_noise(lorenz(n), 0.03)
 
 # two frequencies should live in 3d space
-# make_signal = lambda n: np.sin(0.05*np.arange(n)) + 0.3*np.sin(0.2212*np.arange(n))
-# n_latent = 3
+make_signal = lambda n: np.sin(0.05*np.arange(n)) + 0.3*np.sin(0.2212*np.arange(n))
+n_latent = 3
 
 # make_signal = lambda n: ginz_lan(n)[:,5]
 # n_latent = 20
@@ -359,8 +359,25 @@ def plot_prediction_im(n=2000, signal_gen=make_signal):
 
 
 
+
+
+def rot(axis, theta):
+   mat = np.eye(3,3)
+   axis = axis/sqrt(np.dot(axis, axis))
+   a = cos(theta/2.)
+   b, c, d = -axis*sin(theta/2.)
+
+   return np.array([
+      [a*a+b*b-c*c-d*d, 2*(b*c-a*d), 2*(b*d+a*c)],
+      [2*(b*c+a*d), a*a+c*c-b*b-d*d, 2*(c*d-a*b)],
+      [2*(b*d-a*c), 2*(c*d+a*b), a*a+d*d-b*b-c*c]
+   ])
+
+
 #plot_prediction_im(3000, make_signal)
 plot_prediction(3000, make_signal)
+
+#TS.plot3d(*dot(rot([1,0,1],-1.4),code.T), '-k', linewidth=0.5)
 
 # sig = make_signal(60000)
 # pred_sig = predict_signal(60000)
