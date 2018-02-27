@@ -40,12 +40,17 @@ Timeshift operator E{n} x[k] := x[k+n]
 * finds perfect embedding in latent space (fills space entirely)
 * learning multiple attractors
 * linear vs nonlinear AE
-* short-time learning gives already good results, due to averaging of prjections
+* short-time learning gives already good results, due to averaging of projections
+* lin. sys. with two frequencies should live in 3d space: torus can be embedded in such
+   * works with 3D latent space!
+   * interesting observation if only 2D latent space -> approxiamtes second freq in waveshape
+
 
 
 ## Comparison against existing methods
 
 * AR-NN
+* prob-AR-NN (wavenet)
 * Approximating Differential Equation from embedded
 
 For the sake of simplcity we compare oinly against a simple auto-regressive neural network that predicts
