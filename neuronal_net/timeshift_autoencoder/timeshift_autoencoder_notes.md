@@ -45,6 +45,7 @@ Timeshift operator E{n} x[k] := x[k+n]
    * works with 3D latent space!
    * interesting observation if only 2D latent space -> approxiamtes second freq in waveshape
 
+* AE learning periodic signal -> learns unstable periodic orbit -> route to chaos, etc.
 
 
 ## Comparison against existing methods
