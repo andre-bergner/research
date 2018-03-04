@@ -8,10 +8,11 @@ signal_gen = lambda n: np.exp(-0.002*np.arange(n)) * np.sin(0.2*np.arange(n) + 6
 #signal_gen = lambda n: np.linspace(1,0,n) * np.sin(0.2*np.arange(n) + 6*np.sin(0.017*np.arange(n)))
 #signal_gen = lambda n: np.sin(0.008*np.arange(n)) * np.sin(0.2*np.arange(n) + 6*np.sin(0.017*np.arange(n)))
 #signal_gen = lambda n: .5*(.8+.2*np.cos(0.008*np.arange(n))) * np.sin(0.2*np.arange(n) + 6*np.sin(0.017*np.arange(n)))
+signal_gen = lambda n: TS.lorenz(n)
 
 frame_size = 128
 shift = 64
-n_latent = 10
+n_latent = 8
 in_noise_stddev = 0.02
 code_noise_stddev = 0.001
 n_pairs = 2000
