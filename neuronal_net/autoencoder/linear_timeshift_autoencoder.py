@@ -25,6 +25,7 @@ n_epochs = 100 # 300
 
 n_latent = 2
 make_signal = lambda n: np.sin(0.05*np.arange(n))
+#n_latent = 3  # will not be able to learn both frequencies without non-linearities to fold torus into 3D
 #n_latent = 4
 #make_signal = lambda n: np.sin(0.05*np.arange(n)) + 0.3*np.sin(0.2212*np.arange(n))
 
