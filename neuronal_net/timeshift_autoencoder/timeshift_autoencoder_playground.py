@@ -48,8 +48,8 @@ make_signal = lambda n: TS.lorenz(1*n)[::1]
 #make_signal = lambda n: tools.add_noise(lorenz(n), 0.03)
 
 # two frequencies should live in 3d space
-make_signal = lambda n: np.sin(0.05*np.arange(n)) + 0.3*np.sin(0.2212*np.arange(n))
-n_latent = 3
+#make_signal = lambda n: np.sin(0.05*np.arange(n)) + 0.3*np.sin(0.2212*np.arange(n))
+#n_latent = 3
 
 # make_signal = lambda n: ginz_lan(n)[:,5]
 # n_latent = 20
@@ -297,19 +297,22 @@ plot_orig_vs_reconst(0)
 
 
 def xfade_append(xs, ys, n_split):
-   num_left = len(ys) - n_split
+   # expects xs,ys to have shape (N,...,1)
+   # expects time in first dimension: N
+   num_left = ys.shape[0] - n_split
    fade = np.linspace(0, 1, num_left)
-   xs[-num_left:] *= (1-fade)
-   xs[-num_left:] += ys[:num_left] * fade
-   return concatenate([xs, ys[-n_split:]])
+   fade_tensor = np.tile(fade, list(ys.shape[1:]) + [1]).T
+   xs[-num_left:] *= (1-fade_tensor)
+   xs[-num_left:] += ys[:num_left] * fade_tensor
+   return concatenate([xs, ys[-n_split:]], axis=0)
 
 def predict_signal(n_samples, frame):
-   frame_ = frame.reshape([1] + list(in_frames[0].shape))
+   frame_ = frame.reshape([1] + list(frame.shape))
    frames = np.array([f[0] for f in generate_n_frames_from(frame_, int(n_samples/shift))])
    # pred_sig = concatenate([ f[-shift:] for f in frames[1:] ])
    pred_sig = frame
    for f in frames[0:]:
-      pred_sig = xfade_append(pred_sig, f, shift)
+      pred_sig = xfade_append(pred_sig.T, f.T, shift).T
    return pred_sig
 
 def plot_prediction(n=2000, signal_gen=make_signal):
@@ -319,34 +322,6 @@ def plot_prediction(n=2000, signal_gen=make_signal):
    ax[0].plot(sig[:n], 'k')
    ax[0].plot(pred_sig[:n], 'r')
    ax[1].plot(sig[:n]-pred_sig[:n])
-
-
-
-def xfade_append2(xs, ys, n_split):
-   # assumes time in last dimension
-   num_left = ys.shape[-1] - n_split
-   fade = np.linspace(0, 1, num_left)
-   fade_block = np.outer(np.ones([ys.shape[0]]), fade)
-   xs[:,-num_left:] *= (1-fade_block)
-   xs[:,-num_left:] += ys[:,:num_left] * fade_block
-   return concatenate([xs, ys[:,-n_split:]], axis=-1)
-
-def predict_signal2(n_samples, frame):
-   frame_ = frame.reshape([1] + list(frame.shape))
-   frames = np.array([f[0] for f in generate_n_frames_from(frame_, int(n_samples/shift))])
-   # pred_sig = concatenate([ f[-shift:] for f in frames[1:] ])
-   pred_sig = frame
-   for f in frames[0:]:
-      pred_sig = xfade_append2(pred_sig, f, shift)
-   return pred_sig
-
-def plot_prediction2(n=2000, signal_gen=make_signal):
-   sig = signal_gen(n+100).T
-   pred_sig = predict_signal2(n+100, sig[:,:frame_size])
-   fig, ax = pl.subplots(2,1)
-   ax[0].plot(sig[:n].T, 'k')
-   ax[0].plot(pred_sig[:n].T, 'r')
-   ax[1].plot((sig[:,:n]-pred_sig[:,:n]).T)
 
 def plot_prediction_im(n=2000, signal_gen=make_signal):
    sig = signal_gen(n+100).T
