@@ -2,7 +2,8 @@ from imports import *
 from keras_tools import extra_layers as XL
 from keras_tools import functional_layers as F
 #from test_signals import *
-from pylab import imshow
+import pylab as pl
+from pylab import *
 
 frame_size = 128
 # with strong downsampling
@@ -247,40 +248,14 @@ def predict_ar_model(start_frame=in_frames[0], n_pred=100):
    return result
 
 
-
-
-from pylab import *
-
 figure()
 semilogy(loss_recorder.losses)
-
-
-
-import pylab as pl
-
-def predict_n_steps_from_frame(start_frame=in_frames[0:1], n_pred=1):
-   frame = start_frame
-   #f = np.random.rand(*f.shape)
-   for _ in range(n_pred):
-      frame = model.predict(frame)
-   return frame[0]
-
-def predict_n_steps(n_start=0, n_pred=1):
-   return predict_n_steps_from_frame(in_frames[n_start:n_start+1], n_pred)
 
 
 def generate_n_frames_from(frame, n_frames=10):
    for n in range(n_frames):
       frame = model.predict(frame)
       yield frame
-
-#def predict_n_steps_(n_start=0, n_pred=1):
-#   f = in_frames[n_start:n_start+1]
-#   #f = np.random.rand(*f.shape)
-#   for _ in range(n_pred):
-#      f = model.predict(f)
-#   return f[0]
-
 
 def plot_orig_vs_reconst(n=0):
    fig = pl.figure()
