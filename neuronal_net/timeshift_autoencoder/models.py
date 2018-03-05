@@ -146,6 +146,16 @@ def predict_ar_model(model, start_frame, n_samples):
       frame = result[-frame_size:]
    return result
 
+def predict_par_model(model, start_frame, n_samples):
+   frame_size = start_frame.shape[-1]
+   result = start_frame
+   frame = start_frame
+   for _ in range(n_samples):
+      result = np.concatenate([result, [p2x(model.predict(frame.reshape(1,-1))[0])] ])
+      frame = result[-frame_size:]
+   return result
+
+
 def generate_n_frames_from(model, frame, n_frames=10):
    for n in range(n_frames):
       frame = model.predict(frame)

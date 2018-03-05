@@ -71,16 +71,6 @@ arnn_model, parnn_model, tae_model, _ = models({
 })
 
 
-def predict_par_model(model, start_frame, n_samples):
-   frame_size = start_frame.shape[-1]
-   result = start_frame
-   frame = start_frame
-   for _ in range(n_samples):
-      result = np.concatenate([result, [p2x(model.predict(frame.reshape(1,-1))[0])] ])
-      frame = result[-frame_size:]
-   return result
-
-
 
 in_frames, out_frames, next_samples, next_samples2 = TS.make_training_set(
    signal_gen, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
