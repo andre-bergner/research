@@ -36,18 +36,21 @@ def generate_n_frames_from(model, frame, n_frames=10):
       yield frame
 
 def xfade_append(xs, ys, n_split):
-   num_left = len(ys) - n_split
+   # expects xs,ys to have shape (N,...,1)
+   # expects time in first dimension: N
+   num_left = ys.shape[0] - n_split
    fade = np.linspace(0, 1, num_left)
-   xs[-num_left:] *= (1-fade)
-   xs[-num_left:] += ys[:num_left] * fade
-   return np.concatenate([xs, ys[-n_split:]])
+   fade_tensor = np.tile(fade, list(ys.shape[1:]) + [1]).T
+   xs[-num_left:] *= (1-fade_tensor)
+   xs[-num_left:] += ys[:num_left] * fade_tensor
+   return np.concatenate([xs, ys[-n_split:]], axis=0)
 
 def predict_signal(model, start_frame, shift, n_samples):
    frame_ = start_frame.reshape([1] + list(start_frame.shape))
    frames = np.array([f[0] for f in generate_n_frames_from(model, frame_, int(n_samples/shift))])
    pred_sig = start_frame
    for f in frames[0:]:
-      pred_sig = xfade_append(pred_sig, f, shift)
+      pred_sig = xfade_append(pred_sig.T, f.T, shift).T
    return pred_sig
 
 

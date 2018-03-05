@@ -1,6 +1,5 @@
 from imports import *
-from keras_tools import extra_layers as XL
-from keras_tools import functional_layers as F
+from predictors import *
 #from test_signals import *
 import pylab as pl
 from pylab import *
@@ -252,11 +251,6 @@ figure()
 semilogy(loss_recorder.losses)
 
 
-def generate_n_frames_from(frame, n_frames=10):
-   for n in range(n_frames):
-      frame = model.predict(frame)
-      yield frame
-
 def plot_orig_vs_reconst(n=0):
    fig = pl.figure()
    pl.plot(in_frames[n], 'k')
@@ -270,29 +264,9 @@ def plot_diff(step=10):
 plot_orig_vs_reconst(0)
 
 
-
-def xfade_append(xs, ys, n_split):
-   # expects xs,ys to have shape (N,...,1)
-   # expects time in first dimension: N
-   num_left = ys.shape[0] - n_split
-   fade = np.linspace(0, 1, num_left)
-   fade_tensor = np.tile(fade, list(ys.shape[1:]) + [1]).T
-   xs[-num_left:] *= (1-fade_tensor)
-   xs[-num_left:] += ys[:num_left] * fade_tensor
-   return concatenate([xs, ys[-n_split:]], axis=0)
-
-def predict_signal(n_samples, frame):
-   frame_ = frame.reshape([1] + list(frame.shape))
-   frames = np.array([f[0] for f in generate_n_frames_from(frame_, int(n_samples/shift))])
-   # pred_sig = concatenate([ f[-shift:] for f in frames[1:] ])
-   pred_sig = frame
-   for f in frames[0:]:
-      pred_sig = xfade_append(pred_sig.T, f.T, shift).T
-   return pred_sig
-
 def plot_prediction(n=2000, signal_gen=make_signal):
    sig = signal_gen(n+100)
-   pred_sig = predict_signal(n+100, sig[:frame_size])
+   pred_sig = predict_signal(model, sig[:frame_size], shift, n+100)
    fig, ax = pl.subplots(2,1)
    ax[0].plot(sig[:n], 'k')
    ax[0].plot(pred_sig[:n], 'r')
