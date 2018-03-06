@@ -32,6 +32,11 @@ signal_gen = lambda n: TS.lorenz(resample*n)[::resample]
 #n_latent = 8
 
 def ae_tae_para_model(example_frame):
+   # This model consists of:
+   #  • two parallel normal auto encoder
+   #  • a mapping from the two successive latent spaces,
+   #    thus learning the map into the future within the embedding
+   # This model learns a proper auto encoder and a mapping.
 
    activation = fun.bind(XL.tanhx, alpha=0.1)
 
