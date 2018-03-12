@@ -44,36 +44,20 @@ def ginz_lan(n):
    return x[:,:,0]
 
 #make_signal = lorenz
-make_signal = lambda n: TS.lorenz(1*n)[::1]
+make_signal = lambda n: TS.lorenz(1*n, [1,0,0])[::1]
+make_test_signal = lambda n: TS.lorenz(1*n, [0,1,0])[::1]
 #make_signal = lambda n: tools.add_noise(lorenz(n), 0.03)
 
 # two frequencies should live in 3d space
 #make_signal = lambda n: np.sin(0.05*np.arange(n)) + 0.3*np.sin(0.2212*np.arange(n))
 #n_latent = 3
 
-# make_signal = lambda n: ginz_lan(n)[:,5]
-# n_latent = 20
-# frame_size = 200
-# shift = 4
-
-# make_signal = lambda n: ginz_lan(n)
 
 
 in_frames, out_frames, next_samples, next_samples2 = TS.make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
-# in_frames2, out_frames2 = make_training_set(make_signal2, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
-# in_frames, out_frames = concat([in_frames, in_frames2], [out_frames, out_frames2])
-
-# in_frames = in_frames.transpose(0,2,1)
-# out_frames = [out_frames[0].transpose(0,2,1), out_frames[1].transpose(0,2,1)]
 
 
 activation = fun.bind(XL.tanhx, alpha=0.1)
-#act = lambda: L.Activation(activation)
-#act = lambda: L.Activation('tanh')
-#act = lambda: L.LeakyReLU(alpha=0.5)
-
-# def dense(units, use_bias=True):
-#    return fun.ARGS >> L.Dense(units=int(units), activation=activation, use_bias=use_bias)
 
 act = lambda: L.Activation(activation)
 dense = lambda s: F.dense(s, activation=None, use_bias=use_bias)
@@ -103,54 +87,6 @@ def make_dense_model(example_frame, latent_size):
 
 
 
-def make_model_2d(example_frame, latent_size, simple=True):
-   sig_len = example_frame.shape[-1]
-   #x = F.noise(noise_stddev)(F.input_like(example_frame))
-   x = F.input_like(example_frame)
-   eta = F.noise(noise_stddev)
-
-   # tp = fun._ >> L.Permute((1, 2))  TODO: try using permute/transpose
-
-   if simple:
-
-      print("simple model")
-
-      enc1 = conv1d(sig_len/2) >> act() # >> F.dropout(0.2)
-      enc2 = conv1d(sig_len/4) >> act() # >> F.dropout(0.2)
-      #enc3 = conv1d(latent_size)
-      enc3 = F.flatten() >> dense([n_latent]) >> act() # >> F.batch_norm()
-
-      # TODO: figure out dimension from shape
-      dec3 = dense([n_nodes, int(sig_len/4)]) >> act() # >> F.batch_norm() >> F.dropout(0.2)
-      #dec3 = conv1d(sig_len/4)
-      dec2 = conv1d(sig_len/2) >> act() # >> F.dropout(0.2)
-      dec1 = conv1d(sig_len) >> act()
-
-   else:
-
-      enc1 = conv1d(sig_len/2) >> act() >> F.dropout(0.2)
-      enc2a = conv1d(sig_len/4) >> act() >> F.dropout(0.2)
-      enc2b = conv1d(sig_len/4) >> act() >> F.batch_norm() >> F.dropout(0.2)
-      enc2 = enc2a >> enc2b
-      enc3 = F.flatten() >> dense([n_latent]) >> act() >> F.batch_norm()
-      enc3 = enc3 >> F.flatten() >> dense([n_latent]) >> act() >> F.batch_norm()
-
-      # TODO: figure out dimension from shape
-      dec3 = dense([n_nodes, int(sig_len/4)]) >> act() >> F.batch_norm() >> F.dropout(0.2)
-      dec2b = conv1d(sig_len/4) >> act() >> F.batch_norm() >> F.dropout(0.2)
-      dec2a = conv1d(sig_len/2) >> act() >> F.dropout(0.2)
-      dec2 = dec2b >> dec2a
-      dec1 = conv1d(sig_len) >> act()
-
-      # dec4 = up(2) >> conv(8, 1) >> act()
-
-   encoder = enc1 >> enc2 >> enc3
-   decoder = dec3 >> dec2 >> dec1
-   y = encoder >> decoder
-   latent = encoder(x)
-   out = decoder(latent)
-   return M.Model([x], [out]), M.Model([x], [out, y(out)]), M.Model([x], [latent])#, XL.jacobian(latent,x)
-
 
 def make_ar_model(sig_len):
    x = F.input_like(in_frames[0])
@@ -172,11 +108,20 @@ model, model2, encoder, dhdx = make_dense_model(in_frames[0], n_latent)
 #loss_function = lambda y_true, y_pred: \
 #   keras.losses.mean_squared_error(y_true, y_pred) + keras.losses.mean_absolute_error(y_true, y_pred) + 0.02*K.sum(dhdx*dhdx)
 
-# 2D conv-model
-#model, model2, encoder = make_model_2d(in_frames[0], n_latent)
+
+def prediction_dist(num_pred=100, pred_frames=10):
+   pred_len = frame_size * pred_frames
+   sig = make_test_signal(num_pred*frame_size + pred_len)
+   diffs = []
+   for n in arange(num_pred):
+      frame = sig[n*frame_size:(n+1)*frame_size].copy()
+      sig_pred = predict_signal(model, frame, shift, pred_len)[:pred_len]
+      diffs.append(sig_pred - sig[n*frame_size:n*frame_size+pred_len])
+   return np.std(np.array(diffs), axis=0)
 
 
-ar_model, ar_model2 = make_ar_model(len(in_frames[0]))
+
+#ar_model, ar_model2 = make_ar_model(len(in_frames[0]))
 
 print('model shape')
 tools.print_layer_outputs(model)
@@ -192,26 +137,9 @@ loss_recorder = tools.LossRecorder()
 #                      custom_objects={'<lambda>': loss_function})
 
 
-# joint_model does only work with real auto encoders
+model2.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
+tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 32, 3*n_epochs, loss_recorder)
 
-#model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
-#tools.train(model, tools.add_noise(in_frames, noise_stddev), out_frames[0], 20, n_epochs, loss_recorder)
-#
-#model.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
-#tools.train(model, tools.add_noise(in_frames, noise_stddev), out_frames[0], 20, n_epochs, loss_recorder)
-#
-#model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
-#tools.train(model, tools.add_noise(in_frames, noise_stddev), out_frames[0], 50, n_epochs, loss_recorder)
-#
-#
-model2.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
-tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 32, 2*n_epochs, loss_recorder)
-
-model2.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
-tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 32, n_epochs, loss_recorder)
-
-model2.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
-tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 64, n_epochs, loss_recorder)
 
 model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
 
@@ -271,18 +199,6 @@ def plot_prediction(n=2000, signal_gen=make_signal):
    ax[0].plot(sig[:n], 'k')
    ax[0].plot(pred_sig[:n], 'r')
    ax[1].plot(sig[:n]-pred_sig[:n])
-
-def plot_prediction_im(n=2000, signal_gen=make_signal):
-   sig = signal_gen(n+100).T
-   pred_sig = predict_signal2(n+100, sig[:,:frame_size])
-   fig, ax = pl.subplots(3,1)
-   ax[0].imshow(log(.1 + abs(sig[:n])), aspect='auto')
-   ax[1].imshow(log(.1 + abs(pred_sig[:n])), aspect='auto')
-   ax[2].imshow(log(.1 + abs(sig[:,:n]-pred_sig[:,:n])), aspect='auto')
-
-
-
-
 
 
 def rot(axis, theta):
