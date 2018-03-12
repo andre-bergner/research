@@ -46,9 +46,9 @@ def xfade_append(xs, ys, n_split):
    return np.concatenate([xs, ys[-n_split:]], axis=0)
 
 def predict_signal(model, start_frame, shift, n_samples):
-   frame_ = start_frame.copy().reshape([1] + list(start_frame.shape))
+   pred_sig = start_frame.copy()
+   frame_ = start_frame.reshape([1] + list(start_frame.shape))
    frames = np.array([f[0] for f in generate_n_frames_from(model, frame_, int(n_samples/shift))])
-   pred_sig = start_frame
    for f in frames[0:]:
       pred_sig = xfade_append(pred_sig.T, f.T, shift).T
    return pred_sig
