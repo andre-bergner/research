@@ -13,8 +13,8 @@ def x2p(x, n=64, dev=.02):
 
 def predict_ar_model(model, start_frame, n_samples):
    frame_size = start_frame.shape[-1]
-   result = start_frame
-   frame = start_frame
+   result = start_frame.copy()
+   frame = start_frame.copy()
    for _ in range(n_samples):
       result = np.concatenate([result, model.predict(frame.reshape(1,-1))[0]])
       frame = result[-frame_size:]
@@ -22,8 +22,8 @@ def predict_ar_model(model, start_frame, n_samples):
 
 def predict_par_model(model, start_frame, n_samples):
    frame_size = start_frame.shape[-1]
-   result = start_frame
-   frame = start_frame
+   result = start_frame.copy()
+   frame = start_frame.copy()
    for _ in range(n_samples):
       result = np.concatenate([result, [p2x(model.predict(frame.reshape(1,-1))[0])] ])
       frame = result[-frame_size:]
@@ -46,18 +46,20 @@ def xfade_append(xs, ys, n_split):
    return np.concatenate([xs, ys[-n_split:]], axis=0)
 
 def predict_signal(model, start_frame, shift, n_samples):
-   pred_sig = start_frame.copy()
+   start_frame = start_frame.copy()
    frame_ = start_frame.reshape([1] + list(start_frame.shape))
    frames = np.array([f[0] for f in generate_n_frames_from(model, frame_, int(n_samples/shift))])
+   pred_sig = start_frame.copy()
    for f in frames[0:]:
       pred_sig = xfade_append(pred_sig.T, f.T, shift).T
    return pred_sig
 
 
 def predict_signal2(model, start_frame, shift, n_samples):
+   start_frame = start_frame.copy()
    frame_size = start_frame.shape[-1]
    frame = start_frame.reshape([1] + list(start_frame.shape))
-   pred_sig = start_frame
+   pred_sig = start_frame.copy()
    for n in range(int(n_samples/shift)):
       frame = model.predict(frame)
       pred_sig = xfade_append(pred_sig, frame[0], shift)
