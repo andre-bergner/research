@@ -29,7 +29,7 @@ n_latent = 4
 in_noise_stddev = 0.05
 code_noise_stddev = 0.01
 n_pairs = 10000
-n_epochs = 40
+n_epochs = 10
 resample = 1
 
 signal_gen = lambda n: TS.lorenz(resample*n)[::resample]
@@ -77,6 +77,19 @@ in_frames, out_frames, next_samples, next_samples2 = TS.make_training_set(
 
 next_samples_p = np.array([x2p(x) for x in next_samples])
 
+make_test_signal = lambda n: TS.lorenz(n, [0,1,0])
+
+def prediction_dist(predictor, num_pred=10, pred_frames=5):
+   pred_len = frame_size * pred_frames
+   sig = make_test_signal(num_pred*frame_size + pred_len)
+   diffs = []
+   for n in np.arange(num_pred):
+      frame = sig[n*frame_size:(n+1)*frame_size].copy()
+      sig_pred = predictor(frame, pred_len)[:pred_len]
+      diffs.append(sig_pred - sig[n*frame_size:n*frame_size+pred_len])
+   return np.std(np.array(diffs), axis=0)
+
+
 
 arnn = arnn_model(in_frames[0])
 parnn = parnn_model(in_frames[0])
@@ -88,16 +101,15 @@ arnn_metrics = Metrics(fun.bind(predict_ar_model, arnn, start_frame=in_frames[0]
 tae_metrics = Metrics(fun.bind(predict_signal, tae, start_frame=in_frames[0], shift=shift, n_samples=2048))
 tae2_metrics = Metrics(fun.bind(predict_signal, tae21, start_frame=in_frames[0], shift=shift, n_samples=2048))
 
+#parnn_metrics = Metrics( fun.bind(prediction_dist, predictor=lambda f,x: predict_par_model(parnn, start_frame=f, n_samples=x)))
+#arnn_metrics = Metrics(  fun.bind(prediction_dist, predictor=lambda f,x: predict_ar_model(arnn, start_frame=f, n_samples=x)))
+#tae_metrics = Metrics(   fun.bind(prediction_dist, predictor=lambda f,x: predict_signal(tae, start_frame=f, shift=shift, n_samples=x)))
+#tae2_metrics = Metrics(  fun.bind(prediction_dist, predictor=lambda f,x: predict_signal(tae21, start_frame=f, shift=shift, n_samples=x)))
+
 
 def train_model(model, ins, outs, metrics_recorder,loss=loss_function):
-   model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss)
-   tools.train(model, ins, outs, 32, n_epochs, metrics_recorder)
-   model.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss)
-   tools.train(model, ins, outs, 32, n_epochs, metrics_recorder)
-   model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss)
-   tools.train(model, ins, outs, 64, 2*n_epochs, metrics_recorder)
-   #model.compile(optimizer=keras.optimizers.SGD(lr=0.005), loss=loss)
-   #tools.train(model, ins, outs, 128, n_epochs, metrics_recorder)
+   model.compile(optimizer=keras.optimizers.Adam(), loss=loss)
+   tools.train(model, ins, outs, 32, 3*n_epochs, metrics_recorder)
 
 train_model(parnn, in_frames, next_samples_p, parnn_metrics, loss=keras.losses.categorical_crossentropy)
 train_model(arnn, in_frames, next_samples, arnn_metrics)
@@ -105,43 +117,22 @@ train_model(tae, in_frames, out_frames[0], tae_metrics)
 train_model(tae22, in_frames, out_frames, tae2_metrics)
 
 sig = signal_gen(4096)
-pred_par_sig = predict_ar_model(arnn, in_frames[0], 4096)
+pred_par_sig = predict_par_model(parnn, in_frames[0], 4096)
 pred_ar_sig = predict_ar_model(arnn, in_frames[0], 4096)
 pred_sig = predict_signal(tae, in_frames[0], shift, 4096)
 pred_sig2 = predict_signal(tae21, in_frames[0], shift, 4096)
 
 def plot_results():
-   fig, ax = pl.subplots(4,2)
+   fig, ax = pl.subplots(3,2)
    ax[0,0].semilogy(tae_metrics.losses, 'b')
    ax[0,0].semilogy(tae2_metrics.losses, 'g')
    ax[0,0].semilogy(arnn_metrics.losses, 'r')
    ax[0,0].semilogy(parnn_metrics.losses, 'c')
 
-   ax[0,1].plot(sig, 'k')
-   ax[0,1].plot(tae_metrics.predictions[0], 'b')
-   ax[0,1].plot(tae2_metrics.predictions[0], 'g')
-   ax[0,1].plot(arnn_metrics.predictions[0], 'r')
-   ax[0,1].plot(parnn_metrics.predictions[0], 'c')
-
-   ax[1,0].plot(sig, 'k')
-   ax[1,0].plot(tae_metrics.predictions[1], 'b')
-   ax[1,0].plot(tae2_metrics.predictions[1], 'g')
-   ax[1,0].plot(arnn_metrics.predictions[1], 'r')
-   ax[1,0].plot(parnn_metrics.predictions[1], 'c')
-
-   ax[1,1].plot(sig, 'k')
-   ax[1,1].plot(tae_metrics.predictions[2], 'b')
-   ax[1,1].plot(tae2_metrics.predictions[2], 'g')
-   ax[1,1].plot(arnn_metrics.predictions[2], 'r')
-   ax[1,1].plot(parnn_metrics.predictions[2], 'c')
-
-
-   ax[2,0].plot(sig[:-int(15/resample)], sig[int(15/resample):], 'k', linewidth=0.5)
-   ax[2,1].plot(pred_sig[:-int(15/resample)], pred_sig[int(15/resample):], 'b', linewidth=0.5)
-   ax[3,0].plot(pred_sig2[:-int(15/resample)], pred_sig2[int(15/resample):], 'g', linewidth=0.5)
-   ax[3,1].plot(pred_ar_sig[:-int(15/resample)], pred_ar_sig[int(15/resample):], 'r', linewidth=0.5)
+   ax[0,1].plot(sig[:-int(15/resample)], sig[int(15/resample):], 'k', linewidth=0.5)
+   ax[1,0].plot(pred_sig[:-int(15/resample)], pred_sig[int(15/resample):], 'b', linewidth=0.5)
+   ax[1,1].plot(pred_sig2[:-int(15/resample)], pred_sig2[int(15/resample):], 'g', linewidth=0.5)
+   ax[2,0].plot(pred_ar_sig[:-int(15/resample)], pred_ar_sig[int(15/resample):], 'r', linewidth=0.5)
+   ax[2,1].plot(pred_par_sig[:-int(15/resample)], pred_par_sig[int(15/resample):], 'c', linewidth=0.5)
 
 plot_results()
-
-# sd.play(sig, 44100)
-# sd.play(pred_sig, 44100)
