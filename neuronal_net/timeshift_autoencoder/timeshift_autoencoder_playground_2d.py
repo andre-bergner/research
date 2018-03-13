@@ -68,7 +68,7 @@ def make_model_2d(example_frame, latent_size, simple=True):
    sig_len = example_frame.shape[-1]
    #x = F.noise(noise_stddev)(F.input_like(example_frame))
    x = F.input_like(example_frame)
-   eta = F.noise(noise_stddev)
+   eta = lambda: F.noise(noise_stddev)
 
    # tp = fun._ >> L.Permute((1, 2))  TODO: try using permute/transpose
 
@@ -104,8 +104,8 @@ def make_model_2d(example_frame, latent_size, simple=True):
 
       # dec4 = up(2) >> conv(8, 1) >> act()
 
-   encoder = enc1 >> enc2 >> enc3
-   decoder = dec3 >> dec2 >> dec1
+   encoder = eta() >> enc1 >> enc2 >> enc3
+   decoder = eta() >> dec3 >> dec2 >> dec1
    y = encoder >> decoder
    latent = encoder(x)
    out = decoder(latent)
