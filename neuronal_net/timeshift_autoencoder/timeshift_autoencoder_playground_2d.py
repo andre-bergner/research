@@ -37,7 +37,8 @@ mae = keras.losses.mean_absolute_error
 diff1 = lambda x: x[:,2:] - x[:,:-2]
 diff2 = lambda x: x[:,:,2:] - x[:,:,:-2]
 #loss_function = lambda y_true, y_pred: mse(y_true, y_pred)[:,1:-1] + mse(diff1(y_true), diff1(y_pred))
-loss_function = lambda y_true, y_pred: 0.5*mae(y_true, y_pred) + mae(diff2(y_true), diff2(y_pred)) + mae(diff2(diff2(y_true)), diff2(diff2(y_pred)))
+#loss_function = lambda y_true, y_pred: 0.5*mae(y_true, y_pred) + mae(diff2(y_true), diff2(y_pred)) + mae(diff2(diff2(y_true)), diff2(diff2(y_pred)))
+loss_function = lambda y_true, y_pred: mae(y_true, y_pred)
 
 
 activation = fun.bind(XL.tanhx, alpha=0.1)
@@ -51,22 +52,24 @@ conv1d = lambda feat: F.conv1d(int(feat), kern_len, stride=1, activation=None, u
 # -----------------------------------------------------------------------------------
 
 # customization wrapper for ginzburg-landau generator
+# beta = 0.1 + 0.5j
+# beta = 0.1 + 0.2j
+beta = 0.2 + 0.2j
 def ginz_lan(n):
-   x = TS.ginzburg_landau(n_samples=n, n_nodes=n_nodes, beta=0.1+0.5j)
-   return abs(x[:,:,0] + 1j*x[:,:,1])
-   #return x[:,:,0]
+   x = TS.ginzburg_landau(n_samples=n, n_nodes=n_nodes, beta=beta)
+   #return abs(x[:,:,0] + 1j*x[:,:,1])
+   return x[:,:,0]
 
 make_signal = lambda n: ginz_lan(n)#[:,5]
 
-in_frames, out_frames, next_samples, next_samples2 = TS.make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
+in_frames, out_frames, next_samples, _ = TS.make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 in_frames = in_frames.transpose(0,2,1)
 out_frames = [out_frames[0].transpose(0,2,1), out_frames[1].transpose(0,2,1)]
-
+next_samples = next_samples.reshape(-1,n_nodes,1)
 
 
 def make_model_2d(example_frame, latent_size, simple=True):
    sig_len = example_frame.shape[-1]
-   #x = F.noise(noise_stddev)(F.input_like(example_frame))
    x = F.input_like(example_frame)
    eta = lambda: F.noise(noise_stddev)
 
@@ -113,9 +116,31 @@ def make_model_2d(example_frame, latent_size, simple=True):
 
 
 
+def make_model_2d_arnn(example_frame, simple=True):
+   sig_len = example_frame.shape[-1]
+   x = F.input_like(example_frame)
+   eta = lambda: F.noise(noise_stddev)
 
-# 2D conv-model
-model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=False)
+   if simple:
+
+      print("simple model")
+
+      d1 = conv1d(sig_len/2) >> act()
+      d2 = conv1d(sig_len/2) >> act()
+      d3 = conv1d(sig_len/8) >> act()
+      d4 = conv1d(sig_len/16) >> act()
+      d5 = conv1d(1) >> act()
+
+   else:
+
+      pass
+
+   y = d1 >> d2 >> d3 >> d4 >> d5
+   return M.Model([x], [y(x)])
+
+
+model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=True)
+
 
 tools.print_layer_outputs(model)
 loss_recorder = tools.LossRecorder()
@@ -128,21 +153,54 @@ tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 128, 10
 model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
 
 
+arnn_model = make_model_2d_arnn(in_frames[0], simple=True)
+arnn_model.compile(optimizer=keras.optimizers.Adam(), loss=keras.losses.mean_absolute_error)
+arnn_loss_recorder = tools.LossRecorder()
+tools.train(arnn_model, in_frames, next_samples, 32, 100, arnn_loss_recorder)
+
 figure()
 semilogy(loss_recorder.losses)
 
 
-def plot_prediction_im(n=2000, signal_gen=make_signal):
-   sig = signal_gen(n+100).T
+
+def predict_ar_model(model, start_frame, n_samples):
+   frame_size = start_frame.shape[-1]
+   result = start_frame.copy()
+   frame = start_frame.copy()
+   frame_ = frame.reshape([1] + list(frame.shape))
+   for _ in range(n_samples):
+      result = np.concatenate([result, model.predict(frame_)[0]], axis=1)
+      frame = result[:,-frame_size:]
+      frame_ = frame.reshape([1] + list(frame.shape))
+   return result
+
+
+
+
+
+
+def plot_prediction_im(n=2000, signal_gen=make_signal, ofs=0):
+   sig = signal_gen(n+100+ofs)[ofs:].T
    pred_sig = predict_signal(model, sig[:,:frame_size], shift, n+100)
-   fig, ax = pl.subplots(3,1)
-   ax[0].imshow(log(.1 + abs(sig[:n])), aspect='auto')
-   ax[1].imshow(log(.1 + abs(pred_sig[:n])), aspect='auto')
-   ax[2].imshow(log(.1 + abs(sig[:,:n]-pred_sig[:,:n])), aspect='auto')
+   pred_sig_arnn = predict_ar_model(arnn_model, sig[:,:frame_size], n+100)
+   fig, ax = pl.subplots(5,1)
+   ax[0].imshow(log(.1 + abs(sig[:n])), aspect='auto', cmap='gray')
+   ax[1].imshow(log(.1 + abs(pred_sig[:n])), aspect='auto', cmap='gray')
+   ax[2].imshow(log(.1 + abs(sig[:,:n]-pred_sig[:,:n])), aspect='auto', cmap='gray')
+   ax[3].imshow(log(.1 + abs(pred_sig_arnn[:n])), aspect='auto', cmap='gray')
+   ax[4].imshow(log(.1 + abs(sig[:,:n]-pred_sig_arnn[:,:n])), aspect='auto', cmap='gray')
 
 def plot_prediction(n=2000, signal_gen=make_signal, k=int(n_nodes/2)):
    sig = signal_gen(n+100).T
    pred_sig = predict_signal(model, sig[:,:frame_size], shift, n+100)
+   figure()
+   pl.plot(sig[k,:], 'k')
+   pl.plot(pred_sig[k,:], 'g')
+   pl.plot([frame_size, frame_size],[0,2], '--r', linewidth=2)
+
+def plot_prediction_arnn(n=2000, signal_gen=make_signal, k=int(n_nodes/2)):
+   sig = signal_gen(n+100).T
+   pred_sig = predict_ar_model(arnn_model, sig[:,:frame_size], n+100)
    figure()
    pl.plot(sig[k,:], 'k')
    pl.plot(pred_sig[k,:], 'g')
@@ -157,8 +215,7 @@ def prediction_dist(num_pred=10, pred_frames=5):
       frame = sig[:,n*frame_size:(n+1)*frame_size]
       sig_pred = predict_signal(model, frame, shift, pred_len)[:pred_len]
       diffs = np.concatenate([ diffs, sig_pred[:,:pred_len] - sig[:,n*frame_size:n*frame_size+pred_len] ], axis=0)
-   #return np.std(np.array(diffs), axis=0)
-   return np.array(diffs)
+   return np.std(diffs,axis=0)
 
 
 plot_prediction_im(3000, make_signal)
