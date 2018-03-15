@@ -1,5 +1,26 @@
 NEXT STEPS
-• split off 2D part and "activate"
+• 2D ARNN benchmark
+• start writing chapter on 2-osc:
+    • situation linear vs nonlinear NN
+    • nice pictures of 2-Tori etc.
+• validation/test set --> measure success of prediction
+• compare models (arnn, parnn, tae) with noisy input
+
+• GAN-(V)AE:
+   1. MNIST AE (clean up)
+   2. MNIST VAE
+   3. GAN-(V)AE: use GAE-loss on top of (V)AE 
+   4. GAN-(V)AE for drum samples
+
+
+• move big block to own TODO/NOTES file
+• dwt tool
+
+• AE+TAE: train parallel AE and TAE using hidden mapping phi: code[n] -> code[n+1]
+• 2D ARNN
+• try U-Net skip connections (with additional layer in between?)
+• split from vs-file another comparison: model vs model2 vs AE+TAE
+• try VAE
 
 • Idea: Problem might be statistical: low values are more often samples then high ones (log-scale)
   → try: linear fade

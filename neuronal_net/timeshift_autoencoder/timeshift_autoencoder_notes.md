@@ -57,6 +57,7 @@ Timeshift operator E{n} x[k] := x[k+n]
 For the sake of simplcity we compare oinly against a simple auto-regressive neural network that predicts
 one sample at a time. Reason: see main differences in the setup and not fency priors, regularizations, etc.
 
+* 2D case TAE is better in learning long term structure but fails with detailed distribution
 
 ## Application to different signals
 
