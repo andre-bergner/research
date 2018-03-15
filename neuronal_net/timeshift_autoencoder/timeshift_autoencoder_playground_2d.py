@@ -18,13 +18,17 @@ n_latent = 20
 frame_size = 128
 shift = 16
 n_pairs = 1000
-n_epochs = 50
+n_epochs = 100
 noise_stddev = 0.01
 
 #frame_size = 64
 #n_nodes = 10
-n_latent = 40
+#n_latent = 40
 #shift = 4
+
+n_pairs = 5000
+n_epochs = 20
+
 
 loss_function = lambda y_true, y_pred: \
    keras.losses.mean_squared_error(y_true, y_pred) + keras.losses.mean_absolute_error(y_true, y_pred)
@@ -146,9 +150,9 @@ tools.print_layer_outputs(model)
 loss_recorder = tools.LossRecorder()
 
 model2.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
-tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 32, 10, loss_recorder)
+tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 32, n_epochs//20, loss_recorder)
 model2.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
-tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 128, 100, loss_recorder)
+tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 128, n_epochs, loss_recorder)
 
 model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
 
@@ -156,7 +160,7 @@ model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
 arnn_model = make_model_2d_arnn(in_frames[0], simple=True)
 arnn_model.compile(optimizer=keras.optimizers.Adam(), loss=keras.losses.mean_absolute_error)
 arnn_loss_recorder = tools.LossRecorder()
-tools.train(arnn_model, in_frames, next_samples, 32, 100, arnn_loss_recorder)
+tools.train(arnn_model, in_frames, next_samples, 32, n_epochs, arnn_loss_recorder)
 
 figure()
 semilogy(loss_recorder.losses)
