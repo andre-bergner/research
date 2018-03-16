@@ -60,16 +60,25 @@ class Logger(keras.callbacks.Callback):
 
    def on_train_begin(self, logs={}):
       self.start_time = time.time()
+      self.num_epochs = self.params['epochs']
+      self.batches_per_epoch = self.params['samples'] / self.params['batch_size']
+      self.all_batches = self.num_epochs * self.batches_per_epoch
+      self.current_batch = 0
 
-   def on_epoch_end(self, epoch, logs={}):
-      num_epochs = self.params['epochs']
-      filled_bars = int(epoch * self.bar_size / num_epochs) + 1
+   def on_epoch_begin(self, epoch, logs={}):
+      self.current_epoch = epoch
+
+   def on_batch_begin(self, batch, logs={}):
+      self.current_batch += 1
+
+   def on_batch_end(self, batch, logs={}):
+      filled_bars = int(self.current_batch * self.bar_size / self.all_batches)
       nonfilled_bars = self.bar_size - filled_bars
       delta_time = time.time() - self.start_time
       print( '\r', end='' )
-      print( 'training: [' + filled_bars*'●' + nonfilled_bars*' ' + ']  ', end='' )
+      print( 'training: [' + filled_bars*'=' + nonfilled_bars*' ' + ']  ', end='' )
       print( 'Epoch {0}/{1} (loss={2:.3}, {3:.1f} sec)'.format(
-         epoch+1, num_epochs, logs.get('loss'), delta_time), end='')
+         self.current_epoch+1, self.num_epochs, logs.get('loss'), delta_time), end='')
       print( '', end='', flush=True )
 
    def on_train_end(self, logs={}):
