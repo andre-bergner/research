@@ -26,8 +26,12 @@ noise_stddev = 0.01
 #n_latent = 40
 #shift = 4
 
-n_pairs = 5000
-n_epochs = 20
+#n_pairs = 5000
+#n_epochs = 20
+#noise_stddev = 0.0
+
+# try deep conv net with pooling, with resnet
+
 
 
 loss_function = lambda y_true, y_pred: \
@@ -61,8 +65,8 @@ conv1d = lambda feat: F.conv1d(int(feat), kern_len, stride=1, activation=None, u
 beta = 0.2 + 0.2j
 def ginz_lan(n):
    x = TS.ginzburg_landau(n_samples=n, n_nodes=n_nodes, beta=beta)
-   #return abs(x[:,:,0] + 1j*x[:,:,1])
-   return x[:,:,0]
+   return 0.4*abs(x[:,:,0] + 1j*x[:,:,1])
+   #return x[:,:,0]
 
 make_signal = lambda n: ginz_lan(n)#[:,5]
 
@@ -92,7 +96,7 @@ def make_model_2d(example_frame, latent_size, simple=True):
       dec3 = dense([n_nodes, int(sig_len/4)]) >> act() # >> F.batch_norm() >> F.dropout(0.2)
       #dec3 = conv1d(sig_len/4)
       dec2 = conv1d(sig_len/2) >> act() # >> F.dropout(0.2)
-      dec1 = conv1d(sig_len) >> act()
+      dec1 = conv1d(sig_len) #>> act()
 
    else:
 
@@ -107,7 +111,7 @@ def make_model_2d(example_frame, latent_size, simple=True):
       dec2b = conv1d(sig_len/4) >> act() >> F.batch_norm() >> F.dropout(0.2)
       dec2a = conv1d(sig_len/2) >> act() >> F.dropout(0.2)
       dec2 = dec2b >> dec2a
-      dec1 = conv1d(sig_len) >> act()
+      dec1 = conv1d(sig_len) #>> act()
 
       # dec4 = up(2) >> conv(8, 1) >> act()
 
@@ -143,16 +147,21 @@ def make_model_2d_arnn(example_frame, simple=True):
    return M.Model([x], [y(x)])
 
 
-model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=True)
+model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=False)
 
 
 tools.print_layer_outputs(model)
 loss_recorder = tools.LossRecorder()
 
 model2.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
-tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 32, n_epochs//20, loss_recorder)
+tools.train(model2, in_frames, out_frames, 32, n_epochs//20, loss_recorder)
 model2.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
-tools.train(model2, tools.add_noise(in_frames, noise_level), out_frames, 128, n_epochs, loss_recorder)
+tools.train(model2, in_frames, out_frames, 128, n_epochs, loss_recorder)
+
+#model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
+#tools.train(model, in_frames, out_frames[0], 32, n_epochs//20, loss_recorder)
+#model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
+#tools.train(model, in_frames, out_frames[0], 128, n_epochs, loss_recorder)
 
 model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
 
