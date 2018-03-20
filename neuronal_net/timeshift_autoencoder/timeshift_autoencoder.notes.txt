@@ -3,8 +3,10 @@ NEXT STEPS
 • start writing chapter on 2-osc:
     • situation linear vs nonlinear NN
     • nice pictures of 2-Tori etc.
+• for MNIST compare image quality: AE vs. VAE vs. AAE
 • validation/test set --> measure success of prediction
 • compare models (arnn, parnn, tae) with noisy input
+• lorenz-ae: deeper with batch-norm
 
 • GAN-(V)AE:
    1. MNIST AE (clean up)
@@ -36,6 +38,15 @@ NEXT STEPS
 • study nsynth code --> understand integration of VAE
 • wavelet AE
 • compare 2D TAE vs ARNN
+
+
+
+OBSERVATIONS
+
+• linear final layer is important to better predict shape of curve and not to saturate
+• ginz-lan in real-domain is better with deeper model
+
+
 
 
 TODO / IDEAS
