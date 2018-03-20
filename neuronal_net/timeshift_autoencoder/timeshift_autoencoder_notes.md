@@ -24,6 +24,15 @@ the hope is that this system will be stable under pertubation as it always stays
 manifold. The manifold itself would represent the orbit of the system
 
 
+
+Our method is comparaible to auto-regressive methods (such as PixalVAE, Wavenet or ARNN) in the sense
+that predicts the future of a time series given set of past samples. A crucial difference however is
+that the source and target space are the same and the prediction happens by shifting the window along
+the time series, thus, timeshift auto-encoder. Classical auto regressive proesses predict one sample
+at a time.
+
+
+
 ## Definitions
 
 Timeshift operator E{n} x[k] := x[k+n]
