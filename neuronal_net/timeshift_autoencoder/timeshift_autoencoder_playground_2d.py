@@ -3,11 +3,11 @@ from predictors import *
 #from test_signals import *
 import pylab as pl
 from pylab import *
+from matplotlib.pyplot import imread
 
-
-# -----------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # MODEL PARAMETERS
-# -----------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 kern_len = 5
 noise_stddev = 0.03
@@ -70,11 +70,49 @@ def ginz_lan(n):
 
 make_signal = lambda n: ginz_lan(n)#[:,5]
 
+
+def bwimread(filename):
+   img = imread(filename) / 255
+   return (img[:,:,0] + img[:,:,1] + img[:,:,2]) / 3
+
+# img = imread("pattern.jpg") / 260
+# img = bwimread("textures/bgfons.com/plastic_texture1343.jpg")
+# make_signal = lambda n: img[100:140:2].T
+
+
+# n_latent = 80
+# n_nodes = 40
+# img = imread("textures/bgfons.com/rope_texture2078.jpg") / 260
+# img_sig = np.concatenate([img[100:140].T, img[140:180].T], axis=0)
+# make_signal = lambda n: img_sig[:n]
+
+
+n_pairs = 2000
+n_nodes = 450
+n_latent = 40
+n_epochs = 60
+img = bwimread("textures/bgfons.com/rope_texture2074.jpg")
+make_signal = lambda n: img[0:1800:4].T
+loss_function = lambda y_true, y_pred: \
+   0.5*mae(y_true, y_pred) + \
+   mae(diff2(y_true), diff2(y_pred)) + \
+   mae(diff2(diff2(y_true)), diff2(diff2(y_pred)))
+
+
+
+# ------------------------------------------------------------------------------
+# PREPARING DATA
+# ------------------------------------------------------------------------------
+
 in_frames, out_frames, next_samples, _ = TS.make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 in_frames = in_frames.transpose(0,2,1)
 out_frames = [out_frames[0].transpose(0,2,1), out_frames[1].transpose(0,2,1)]
 next_samples = next_samples.reshape(-1,n_nodes,1)
 
+
+# ------------------------------------------------------------------------------
+# MODELS
+# ------------------------------------------------------------------------------
 
 def make_model_2d(example_frame, latent_size, simple=True):
    sig_len = example_frame.shape[-1]
@@ -139,13 +177,25 @@ def make_model_2d_arnn(example_frame, simple=True):
       d4 = conv1d(sig_len/16) >> act()
       d5 = conv1d(1) >> act()
 
+      y = d1 >> d2 >> d3 >> d4 >> d5
+      return M.Model([x], [y(x)])
+
    else:
 
-      pass
+      d1 = conv1d(sig_len/2) >> act() #>> F.dropout(0.2)
+      d2 = conv1d(sig_len/4) >> act() #>> F.dropout(0.2)
+      d3 = conv1d(sig_len/8) >> act() #>> F.batch_norm() >> F.dropout(0.2)
+      d4 = conv1d(sig_len/8) >> act() #>> F.batch_norm() >> F.dropout(0.2)
+      d5 = conv1d(sig_len/16) >> act()# >> F.batch_norm() >> F.dropout(0.2)
+      d6 = conv1d(1)
 
-   y = d1 >> d2 >> d3 >> d4 >> d5
-   return M.Model([x], [y(x)])
+      y = d1 >> d2 >> d3 >> d4 >> d5 >> d6
+      return M.Model([x], [y(x)])
 
+
+# ------------------------------------------------------------------------------
+# TRAINING
+# ------------------------------------------------------------------------------
 
 model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=False)
 
@@ -166,10 +216,13 @@ tools.train(model2, in_frames, out_frames, 128, n_epochs, loss_recorder)
 model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
 
 
-arnn_model = make_model_2d_arnn(in_frames[0], simple=True)
+arnn_model = make_model_2d_arnn(in_frames[0], simple=False)
 arnn_model.compile(optimizer=keras.optimizers.Adam(), loss=keras.losses.mean_absolute_error)
 arnn_loss_recorder = tools.LossRecorder()
 tools.train(arnn_model, in_frames, next_samples, 32, n_epochs, arnn_loss_recorder)
+
+
+# TODO write images to file
 
 figure()
 semilogy(loss_recorder.losses)
@@ -188,9 +241,9 @@ def predict_ar_model(model, start_frame, n_samples):
    return result
 
 
-
-
-
+# ------------------------------------------------------------------------------
+# RESULTS
+# ------------------------------------------------------------------------------
 
 def plot_prediction_im(n=2000, signal_gen=make_signal, ofs=0):
    sig = signal_gen(n+100+ofs)[ofs:].T
@@ -231,4 +284,4 @@ def prediction_dist(num_pred=10, pred_frames=5):
    return np.std(diffs,axis=0)
 
 
-plot_prediction_im(3000, make_signal)
+plot_prediction_im(1500, make_signal)
