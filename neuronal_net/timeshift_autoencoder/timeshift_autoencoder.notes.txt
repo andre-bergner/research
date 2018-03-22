@@ -69,6 +69,7 @@ TODO / IDEAS
 • DAE in second order prediction?
 • use shifts of 50% or 100%, average with interleaved independent predictions
 • use CNN instead of dense
+• learn outside of spatial regions
 ✔ contracting AE
 • start from random position
     --> show that manifold is attraktor
