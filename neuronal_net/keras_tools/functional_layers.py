@@ -38,6 +38,8 @@ def conv1d(num_feat, kernel_size, stride, activation = None, use_bias=True, padd
       **kwargs
    )
 
+def pool1d(pool_size=2, strides=None, padding='same'):
+   return fun._ >> L.MaxPool1D(pool_size=pool_size, strides=strides, padding=padding)
 
 def flatten(*args, **kwargs):
    return fun._ >> L.Flatten(*args, **kwargs)
