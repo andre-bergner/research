@@ -121,10 +121,28 @@ def concat(inputs, outputs):
   return con_ins, con_outs
 
 
+
+
+# ------------------------------------------------------------------------------
+# Plotting Tools
+# ------------------------------------------------------------------------------
+
 import pylab as pl
+
+def imtight(x, cmap='gray'):
+   imshow(x, cmap=cmap, aspect='auto')
+   ax = pl.gca()
+   ax.set_frame_on(False)
+   ax.get_xaxis().set_visible(False)
+   ax.get_yaxis().set_visible(False)
+   pl.tight_layout(pad=0)
+
+
+
 from mpl_toolkits.mplot3d import Axes3D
 
 def plot3d(x, y, z, *args, **kwargs):
    pl.figure()
    pl.axes(projection='3d')
    pl.plot(x, y, z, *args, **kwargs)
+
