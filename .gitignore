@@ -1,5 +1,17 @@
+# OS Artefacts
 .DS_Store
+
+# Build Artefacts
 build-*
 .vscode*
 __pycache__
 *.pyc
+
+# Latex Artefacts
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.pdf
+*.synctex.gz
