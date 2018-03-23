@@ -6,10 +6,9 @@
 # • amplitude modulated
 
 
-from gen_autoencoder import *
+from imports import *
 from keras_tools import extra_layers as XL
 from keras_tools import functional_layers as F
-from test_signals import *
 from pylab import imshow
 
 frame_size = 128
@@ -43,13 +42,13 @@ def print_layer_outputs(model):
       print(l.output_shape[1:])
 
 
-in_frames, out_frames, next_samples, next_samples2 = make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
+in_frames, out_frames, next_samples, next_samples2 = TS.make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 
 dense = lambda s: F.dense(s, activation=None, use_bias=use_bias)
 
 def make_dense_model(example_frame, latent_size):
    sig_len = np.size(example_frame)
-   x = input_like(example_frame)
+   x = F.input_like(example_frame)
    xi = F.noise(noise_stddev)
 
    encoder = dense([latent_size])
