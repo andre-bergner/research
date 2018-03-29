@@ -19,20 +19,20 @@ from timeshift_autoencoder import predictors as P
 
 
 frame_size = 128
-shift = 8
+shift = 32
 n_latent = 4
-noise_stddev = 0.01
+noise_stddev = 0.03
 n_pairs = 5000
 n_epochs = 100
 
 
-n_latent = 2
-make_1freq = lambda n: np.sin(0.05*np.arange(n))
-#n_latent = 3  # will not be able to learn both frequencies without non-linearities to fold torus into 3D
-#n_latent = 4
+# make_1freq = lambda n: np.sin(0.05*np.arange(n))
+# n_latent = 2
 
-make_2freq = lambda n: 0.6*np.sin(0.05*np.arange(n)) + 0.3*np.sin(0.1713*np.arange(n))
-n_latent = 3
+#make_2freq = lambda n: 0.6*np.sin(0.05*np.arange(n)) + 0.3*np.sin(0.1623*np.arange(n))
+make_2freq = lambda n: 0.6*np.sin(0.05*np.arange(n)) + 0.3*np.sin(np.pi*0.05*np.arange(n))
+n_latent = 3   # will not be able to learn both frequencies without non-linearities to fold torus into 3D
+# n_latent = 4
 make_1freq = make_2freq
 
 
@@ -122,7 +122,11 @@ def plot_results(model, encoder, loss_recorder):
       pl.title("learned weights")
 
    # TODO: code is a circle even for untrained model --> WHY?
-   code = encoder.predict(in_frames)
+   # TODO learn code from iteration
+   predict_gen = lambda n: P.predict_signal(model, in_frames[0], shift, n)
+   pred_frames, *_ = TS.make_training_set(predict_gen, frame_size=frame_size, n_pairs=n_pairs, shift=shift)
+   code = encoder.predict(pred_frames)
+   # code = encoder.predict(in_frames)
    if n_latent == 2:
       pl.figure()
       pl.plot(*code.T, 'k')
