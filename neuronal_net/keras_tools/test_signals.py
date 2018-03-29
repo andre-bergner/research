@@ -36,13 +36,57 @@ def rk4(f, x0, t0, dt, N):
    return x
 
 def lorenz(n_samples=10000, init=[1,0,0]):
-   def ode(x,t):
+   def ode(x, t):
       return np.array([
          10 * (x[1] - x[0]),
          x[0] * (28 - x[2]) - x[1],
          x[0] * x[1] - (8./3.) * x[2]
       ])
    return rk4(ode, np.array(init), 0., 0.01, 1000+n_samples-1)[1000:,0] / 20
+
+
+def hindmarsh_rose4(n_samples=10000, init=[1,0,0,0]):
+   a = 1.0
+   b = 3.0
+   c = 1.0
+   d = 0.99
+   e = 1.01
+   f = 5.0128
+   g = 0.0278
+   h = 1.605
+   k = 0.9573
+   l = 1.619
+   mu = 0.0021
+   nu = 0.0009
+   ft = 1.0
+   i0 = 2.9
+   o = 3.1
+   p = 3.96
+   def ode(x, t):
+      nonlocal a
+      nonlocal b
+      nonlocal c
+      nonlocal d
+      nonlocal e
+      nonlocal f
+      nonlocal g
+      nonlocal h
+      nonlocal k
+      nonlocal l
+      nonlocal mu
+      nonlocal nu
+      nonlocal ft
+      nonlocal i0
+      nonlocal o
+      nonlocal p
+      return np.array([
+         ft * ( a*x[1] + b*x[0]*x[0] - c*x[0]*x[0]*x[0] - d*x[2] ) + i0,
+         ft * ( e      - x[1]        - f*x[0]*x[0]      - g*x[3] ),
+         mu * ( -x[2]    + p * (x[0] + h)  ),
+         nu * ( -k*x[3]  + o * (x[1] + l)  )
+      ])
+   return rk4(ode, np.array(init), 0., 0.01, 1000+n_samples-1)[1000:,0] / 20
+
 
 #def roessler(n_samples=10000):
 
