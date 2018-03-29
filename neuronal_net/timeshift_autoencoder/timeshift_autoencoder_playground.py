@@ -46,6 +46,7 @@ def ginz_lan(n):
 #make_signal = lorenz
 make_signal = lambda n: TS.lorenz(1*n, [1,0,0])[::1]
 make_test_signal = lambda n: TS.lorenz(1*n, [0,1,0])[::1]
+#make_signal = lambda n: TS.hindmarsh_rose4(10*n, [0,0,3,-10])[::10]
 #make_signal = lambda n: tools.add_noise(lorenz(n), 0.03)
 
 # two frequencies should live in 3d space
