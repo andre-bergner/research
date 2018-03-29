@@ -25,7 +25,6 @@ def dense(out_shape, activation=None, use_bias=True):
       units = reduce(lambda x,y: x*y, out_shape)
       return _ >> L.Dense(units=units, activation=activation, use_bias=use_bias) >> L.Reshape(out_shape)
 
-
 def conv1d(num_feat, kernel_size, stride, activation = None, use_bias=True, padding='same', *args, **kwargs):
    return fun._ >> L.Conv1D(
       num_feat,
@@ -38,8 +37,29 @@ def conv1d(num_feat, kernel_size, stride, activation = None, use_bias=True, padd
       **kwargs
    )
 
+def conv2d(num_feat, kernel_size, stride, activation=None, use_bias=True, padding='same', *args, **kwargs):
+   return fun._ >> L.Conv2D(
+      num_feat,
+      kernel_size,
+      strides = stride,
+      padding = padding,
+      activation = activation,
+      use_bias = use_bias,
+      *args,
+      **kwargs
+   )
+
+def up2d(factor=(2,2)):
+   return fun._ >> L.UpSampling2D(factor)
+
 def pool1d(pool_size=2, strides=None, padding='same'):
    return fun._ >> L.MaxPool1D(pool_size=pool_size, strides=strides, padding=padding)
+
+def pool2d(pool_size=(2,2), strides=None, padding='same'):
+   return fun._ >> L.MaxPool2D(pool_size=pool_size, strides=strides, padding=padding)
+
+def reshape(out_shape):
+   return fun._ >> L.Reshape(out_shape)
 
 def flatten(*args, **kwargs):
    return fun._ >> L.Flatten(*args, **kwargs)
