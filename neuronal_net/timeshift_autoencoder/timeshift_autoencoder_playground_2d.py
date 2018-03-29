@@ -16,9 +16,9 @@ use_bias = True
 n_nodes = 20
 n_latent = 20
 frame_size = 128
-shift = 16
-n_pairs = 1000
-n_epochs = 100
+shift = 32
+n_pairs = 2000
+n_epochs = 50
 noise_stddev = 0.01
 
 #frame_size = 64
@@ -87,17 +87,38 @@ def bwimread(filename):
 # make_signal = lambda n: img_sig[:n]
 
 
-n_pairs = 2000
-n_nodes = 450
-n_latent = 40
-n_epochs = 60
-img = bwimread("textures/bgfons.com/rope_texture2074.jpg")
-make_signal = lambda n: img[0:1800:4].T
-loss_function = lambda y_true, y_pred: \
-   0.5*mae(y_true, y_pred) + \
-   mae(diff2(y_true), diff2(y_pred)) + \
-   mae(diff2(diff2(y_true)), diff2(diff2(y_pred)))
+def part_rope_image():
+   n_pairs = 2000
+   n_nodes = 40
+   n_latent = 40
+   n_epochs = 50
+   img = bwimread("textures/bgfons.com/rope_texture2074.jpg")
+   make_signal = lambda n: img[100:260:4,:n].T
+   loss_function = lambda y_true, y_pred: \
+      0.5*mae(y_true, y_pred) + \
+      mae(diff2(y_true), diff2(y_pred)) + \
+      mae(diff2(diff2(y_true)), diff2(diff2(y_pred)))
+   return make_signal, loss_function
 
+def full_rope_image():
+   n_pairs = 2000
+   n_nodes = 450
+   n_latent = 40
+   n_epochs = 60
+   img = bwimread("textures/bgfons.com/rope_texture2074.jpg")
+   make_signal = lambda n: img[0:1800:4,:n].T
+   loss_function = lambda y_true, y_pred: \
+      0.5*mae(y_true, y_pred) + \
+      mae(diff2(y_true), diff2(y_pred)) + \
+      mae(diff2(diff2(y_true)), diff2(diff2(y_pred)))
+   return make_signal, loss_function
+
+# n_pairs = 2000
+# n_nodes = 40
+# n_latent = 40
+# n_epochs = 50
+# make_signal, loss_function = part_rope_image()
+# make_signal, loss_function = full_rope_image()
 
 
 # ------------------------------------------------------------------------------
@@ -162,6 +183,43 @@ def make_model_2d(example_frame, latent_size, simple=True):
 
 
 
+
+def make_model_2d_conv(example_frame, latent_size):
+
+   sig_len = example_frame.shape[-1]
+   x = F.input_like(example_frame)
+   eta = lambda: F.noise(noise_stddev)
+
+   conv = lambda feat, stride=(1,1): F.conv2d(feat, (kern_len, 7), stride=stride)
+   up = lambda x,y: F.up2d((x,y))
+
+   encoder = (  F.reshape(list(example_frame.shape) + [1]) 
+             >> conv(2, (1,2)) >> act() >> F.dropout(0.2)
+             >> conv(2, (1,2)) >> act() >> F.dropout(0.2)
+             >> conv(4, (1,2)) >> act() >> F.batch_norm() >> F.dropout(0.2)
+             >> conv(4, (1,2)) >> act() >> F.batch_norm() >> F.dropout(0.2)
+             >> F.flatten() >> dense([n_latent]) >> act() >> F.batch_norm()
+             )
+
+   decoder = (  dense([n_nodes, sig_len//16, 4]) >> act() >> F.batch_norm() >> F.dropout(0.2)
+             >> up(1,2) >> conv(4) >> act() >> F.batch_norm() >> F.dropout(0.2)
+             >> up(1,2) >> conv(2) >> act() >> F.batch_norm() >> F.dropout(0.2)
+             >> up(1,2) >> conv(2) >> act() >> F.dropout(0.2)
+             >> up(1,2) >> conv(1) #>> act()
+             >> F.reshape(example_frame.shape)
+             )
+
+   y = eta() >> encoder >> eta() >> decoder
+   latent = encoder(x)
+   out = decoder(latent)
+   return M.Model([x], [out]), M.Model([x], [out, y(out)]), M.Model([x], [latent])#, XL.jacobian(latent,x)
+
+
+
+
+
+
+
 def make_model_2d_arnn(example_frame, simple=True):
    sig_len = example_frame.shape[-1]
    x = F.input_like(example_frame)
@@ -197,29 +255,32 @@ def make_model_2d_arnn(example_frame, simple=True):
 # TRAINING
 # ------------------------------------------------------------------------------
 
-model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=False)
+#model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=False)
+model, model2, encoder = make_model_2d_conv(in_frames[0], n_latent)
 
 
-tools.print_layer_outputs(model)
+#tools.print_layer_outputs(model)
+model.summary()
 loss_recorder = tools.LossRecorder()
 
-model2.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
-tools.train(model2, in_frames, out_frames, 32, n_epochs//20, loss_recorder)
+#model2.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
+#tools.train(model2, in_frames, out_frames, 32, n_epochs//20, loss_recorder)
 model2.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 tools.train(model2, in_frames, out_frames, 128, n_epochs, loss_recorder)
 
 #model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
 #tools.train(model, in_frames, out_frames[0], 32, n_epochs//20, loss_recorder)
 #model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
-#tools.train(model, in_frames, out_frames[0], 128, n_epochs, loss_recorder)
+#tools.train(model, in_frames, out_frames[0], 32, n_epochs, loss_recorder)
 
 model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
 
 
-arnn_model = make_model_2d_arnn(in_frames[0], simple=False)
-arnn_model.compile(optimizer=keras.optimizers.Adam(), loss=keras.losses.mean_absolute_error)
-arnn_loss_recorder = tools.LossRecorder()
-tools.train(arnn_model, in_frames, next_samples, 32, n_epochs, arnn_loss_recorder)
+arnn_model = None
+# arnn_model = make_model_2d_arnn(in_frames[0], simple=False)
+# arnn_model.compile(optimizer=keras.optimizers.Adam(), loss=keras.losses.mean_absolute_error)
+# arnn_loss_recorder = tools.LossRecorder()
+# tools.train(arnn_model, in_frames, next_samples, 32, n_epochs, arnn_loss_recorder)
 
 
 # TODO write images to file
@@ -248,13 +309,15 @@ def predict_ar_model(model, start_frame, n_samples):
 def plot_prediction_im(n=2000, signal_gen=make_signal, ofs=0):
    sig = signal_gen(n+100+ofs)[ofs:].T
    pred_sig = predict_signal(model, sig[:,:frame_size], shift, n+100)
-   pred_sig_arnn = predict_ar_model(arnn_model, sig[:,:frame_size], n+100)
    fig, ax = pl.subplots(5,1)
    ax[0].imshow(log(.1 + abs(sig[:n])), aspect='auto', cmap='gray')
    ax[1].imshow(log(.1 + abs(pred_sig[:n])), aspect='auto', cmap='gray')
    ax[2].imshow(log(.1 + abs(sig[:,:n]-pred_sig[:,:n])), aspect='auto', cmap='gray')
-   ax[3].imshow(log(.1 + abs(pred_sig_arnn[:n])), aspect='auto', cmap='gray')
-   ax[4].imshow(log(.1 + abs(sig[:,:n]-pred_sig_arnn[:,:n])), aspect='auto', cmap='gray')
+
+   if arnn_model:
+      pred_sig_arnn = predict_ar_model(arnn_model, sig[:,:frame_size], n+100)
+      ax[3].imshow(log(.1 + abs(pred_sig_arnn[:n])), aspect='auto', cmap='gray')
+      ax[4].imshow(log(.1 + abs(sig[:,:n]-pred_sig_arnn[:,:n])), aspect='auto', cmap='gray')
 
 def plot_prediction(n=2000, signal_gen=make_signal, k=int(n_nodes/2)):
    sig = signal_gen(n+100).T
