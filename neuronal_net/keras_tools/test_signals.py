@@ -45,6 +45,31 @@ def lorenz(n_samples=10000, init=[1,0,0]):
    return rk4(ode, np.array(init), 0., 0.01, 1000+n_samples-1)[1000:,0] / 20
 
 
+def hindmarsh_rose3(n_samples=10000, init=[0,0,3], i0=3., xr=-8./5.):
+   a = 1.0
+   b = 3.0
+   c = 1.0
+   d = 5.0
+   r = 0.002
+   s = 4.
+   #i0 = 3. # -10...10
+   def ode(x, t):
+      nonlocal a
+      nonlocal b
+      nonlocal c
+      nonlocal d
+      nonlocal r
+      nonlocal s
+      nonlocal xr
+      nonlocal i0
+      return np.array([
+         x[1] + x[0]*x[0]*(b - a*x[0]) - x[2] + i0,
+         c - d*x[0]*x[0] - x[1],
+         r * (s*(x[0]-xr) - x[2]),
+      ])
+   return rk4(ode, np.array(init), 0., 0.01, 1000+n_samples-1)[1000:,0] / 20
+
+
 def hindmarsh_rose4(n_samples=10000, init=[1,0,0,0]):
    a = 1.0
    b = 3.0
