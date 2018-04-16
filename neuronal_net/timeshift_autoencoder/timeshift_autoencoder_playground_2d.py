@@ -148,40 +148,34 @@ def make_model_2d(example_frame, latent_size, simple=True):
 
       print("simple model")
 
-      enc1 = conv1d(sig_len/2) >> act() # >> F.dropout(0.2)
-      enc2 = conv1d(sig_len/4) >> act() # >> F.dropout(0.2)
-      #enc3 = conv1d(latent_size)
-      enc3 = F.flatten() >> dense([n_latent]) >> act() # >> F.batch_norm()
+      encoder = (  conv1d(sig_len/2) >> act() # >> F.dropout(0.2)
+                >> conv1d(sig_len/4) >> act() # >> F.dropout(0.2)
+                >> F.flatten() >> dense([n_latent]) >> act() # >> F.batch_norm()
+                )
 
-      # TODO: figure out dimension from shape
-      dec3 = dense([n_nodes, int(sig_len/4)]) >> act() # >> F.batch_norm() >> F.dropout(0.2)
-      #dec3 = conv1d(sig_len/4)
-      dec2 = conv1d(sig_len/2) >> act() # >> F.dropout(0.2)
-      dec1 = conv1d(sig_len) #>> act()
+      decoder = (  dense([n_nodes, int(sig_len/4)]) >> act() # >> F.batch_norm() >> F.dropout(0.2)
+                >> conv1d(sig_len/2) >> act() # >> F.dropout(0.2)
+                >> conv1d(sig_len) #>> act()
+                )
 
    else:
 
-      enc1 = conv1d(sig_len/2) >> act() >> F.dropout(0.2)
-      enc2a = conv1d(sig_len/4) >> act() >> F.dropout(0.2)
-      enc2b = conv1d(sig_len/4) >> act() >> F.batch_norm() >> F.dropout(0.2)
-      enc2 = enc2a >> enc2b
-      enc3 = F.flatten() >> dense([n_latent]) >> act() >> F.batch_norm()
+      encoder = (  conv1d(sig_len/2) >> act() >> F.dropout(0.2)
+                >> conv1d(sig_len/4) >> act() >> F.dropout(0.2)
+                >> conv1d(sig_len/4) >> act() >> F.batch_norm() >> F.dropout(0.2)
+                >> F.flatten() >> dense([n_latent]) >> act() >> F.batch_norm()
+                )
 
       # TODO: figure out dimension from shape
-      dec3 = dense([n_nodes, int(sig_len/4)]) >> act() >> F.batch_norm() >> F.dropout(0.2)
-      dec2b = conv1d(sig_len/4) >> act() >> F.batch_norm() >> F.dropout(0.2)
-      dec2a = conv1d(sig_len/2) >> act() >> F.dropout(0.2)
-      dec2 = dec2b >> dec2a
-      dec1 = conv1d(sig_len) #>> act()
+      decoder = (  dense([n_nodes, int(sig_len/4)]) >> act() >> F.batch_norm() >> F.dropout(0.2)
+                >> conv1d(sig_len/4) >> act() >> F.batch_norm() >> F.dropout(0.2)
+                >> conv1d(sig_len/2) >> act() >> F.dropout(0.2)
+                >> conv1d(sig_len) #>> act()
+                )
 
-      # dec4 = up(2) >> conv(8, 1) >> act()
-
-   encoder = eta() >> enc1 >> enc2 >> enc3
-   decoder = eta() >> dec3 >> dec2 >> dec1
-   y = encoder >> decoder
+   y = eta() >> encoder >> eta() >> decoder
    latent = encoder(x)
-   out = decoder(latent)
-   return M.Model([x], [out]), M.Model([x], [out, y(out)]), M.Model([x], [latent])#, XL.jacobian(latent,x)
+   return M.Model([x], [y(x)]), M.Model([x], [y(x), y(y(x))]), M.Model([x], [latent])#, XL.jacobian(latent,x)
 
 
 

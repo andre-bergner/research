@@ -49,8 +49,20 @@ def conv2d(num_feat, kernel_size, stride, activation=None, use_bias=True, paddin
       **kwargs
    )
 
+def up1d(factor=2):
+   return fun._ >> L.UpSampling1D(factor)
+
 def up2d(factor=(2,2)):
    return fun._ >> L.UpSampling2D(factor)
+
+def up(factor=2):
+   if type(factor) == int:
+      return up1d(factor)
+   elif type(factor) in (list, tuple):
+      if len(factor) == 1:
+         return up1d(factor)
+      elif len(factor) == 1:
+         return up2d(factor)
 
 def pool1d(pool_size=2, strides=None, padding='same'):
    return fun._ >> L.MaxPool1D(pool_size=pool_size, strides=strides, padding=padding)
