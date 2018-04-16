@@ -88,12 +88,14 @@ def bwimread(filename):
 
 
 def part_rope_image():
-   n_pairs = 2000
+   global n_pairs, n_nodes, n_latent, n_epochs, make_signal, loss_function
+   n_pairs = 6000
    n_nodes = 40
    n_latent = 40
-   n_epochs = 50
+   n_epochs = 20
    img = bwimread("textures/bgfons.com/rope_texture2074.jpg")
-   make_signal = lambda n: img[100:260:4,:n].T
+   #make_signal = lambda n: img[100:260:4,:n].T
+   make_signal = lambda n: np.concatenate([img[100:260:4,:].T, img[260:420:4,:].T, img[420:580:4,:].T])[:n]
    loss_function = lambda y_true, y_pred: \
       0.5*mae(y_true, y_pred) + \
       mae(diff2(y_true), diff2(y_pred)) + \
@@ -117,7 +119,7 @@ def full_rope_image():
 # n_nodes = 40
 # n_latent = 40
 # n_epochs = 50
-# make_signal, loss_function = part_rope_image()
+part_rope_image()
 # make_signal, loss_function = full_rope_image()
 
 
@@ -255,8 +257,8 @@ def make_model_2d_arnn(example_frame, simple=True):
 # TRAINING
 # ------------------------------------------------------------------------------
 
-#model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=False)
-model, model2, encoder = make_model_2d_conv(in_frames[0], n_latent)
+model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=False)
+#model, model2, encoder = make_model_2d_conv(in_frames[0], n_latent)
 
 
 #tools.print_layer_outputs(model)
@@ -265,15 +267,16 @@ loss_recorder = tools.LossRecorder()
 
 #model2.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
 #tools.train(model2, in_frames, out_frames, 32, n_epochs//20, loss_recorder)
+model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 model2.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
-tools.train(model2, in_frames, out_frames, 128, n_epochs, loss_recorder)
+#tools.train(model2, in_frames, out_frames, 128, n_epochs, loss_recorder)
+tools.train(model, in_frames, out_frames[0], 32, n_epochs, loss_recorder)
+tools.train(model, in_frames, out_frames[0], 64, n_epochs, loss_recorder)
 
 #model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
 #tools.train(model, in_frames, out_frames[0], 32, n_epochs//20, loss_recorder)
 #model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 #tools.train(model, in_frames, out_frames[0], 32, n_epochs, loss_recorder)
-
-model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
 
 
 arnn_model = None
