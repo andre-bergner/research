@@ -52,7 +52,7 @@ loss_function = lambda y_true, y_pred: mae(y_true, y_pred)
 activation = fun.bind(XL.tanhx, alpha=0.1)
 act = lambda: L.Activation(activation)
 dense = lambda s: F.dense(s, activation=None, use_bias=use_bias)
-conv1d = lambda feat: F.conv1d(int(feat), kern_len, stride=1, activation=None, use_bias=use_bias)
+conv1d = lambda feat, stride=1: F.conv1d(int(feat), kern_len, stride=stride, activation=None, use_bias=use_bias)
 
 
 # -----------------------------------------------------------------------------------
@@ -90,12 +90,12 @@ def bwimread(filename):
 def part_rope_image():
    global n_pairs, n_nodes, n_latent, n_epochs, make_signal, loss_function
    n_pairs = 6000
-   n_nodes = 40
+   n_nodes = 32
    n_latent = 40
    n_epochs = 20
    img = bwimread("textures/bgfons.com/rope_texture2074.jpg")
    #make_signal = lambda n: img[100:260:4,:n].T
-   make_signal = lambda n: np.concatenate([img[100:260:4,:].T, img[260:420:4,:].T, img[420:580:4,:].T])[:n]
+   make_signal = lambda n: np.concatenate([img[100:228:4,:].T, img[228:356:4,:].T, img[356:484:4,:].T])[:n]
    loss_function = lambda y_true, y_pred: \
       0.5*mae(y_true, y_pred) + \
       mae(diff2(y_true), diff2(y_pred)) + \
@@ -179,6 +179,33 @@ def make_model_2d(example_frame, latent_size, simple=True):
 
 
 
+def make_model_2d_conv2latent(example_frame):
+   sig_len = example_frame.shape[-1]
+   x = F.input_like(example_frame)
+   eta = lambda: F.noise(noise_stddev)
+
+   conv1d = lambda feat, stride=1: F.conv1d(int(feat), 7, stride=stride)
+
+   encoder = (  conv1d(sig_len//2, 2) >> act() >> F.dropout(0.2)
+             >> conv1d(sig_len//2, 2) >> act() >> F.dropout(0.2)
+             >> conv1d(sig_len//2, 2) >> act() >> F.batch_norm() >> F.dropout(0.2)
+             >> conv1d(sig_len//4, 2) >> act() >> F.batch_norm() >> F.dropout(0.2)
+             >> conv1d(sig_len//4, 2) >> act() >> F.batch_norm()
+             )
+
+   decoder = (  F.up(2) >> conv1d(sig_len/4) >> act() >> F.batch_norm() >> F.dropout(0.2)
+             >> F.up(2) >> conv1d(sig_len/2) >> act() >> F.batch_norm() >> F.dropout(0.2)
+             >> F.up(2) >> conv1d(sig_len/2) >> act() >> F.batch_norm() >> F.dropout(0.2)
+             >> F.up(2) >> conv1d(sig_len/2) >> act() >> F.dropout(0.2)
+             >> F.up(2) >> conv1d(sig_len)
+             )
+
+   y = eta() >> encoder >> eta() >> decoder
+   latent = encoder(x)
+   out = decoder(latent)
+   return M.Model([x], [y(x)]), M.Model([x], [y(x), y(y(x))]), M.Model([x], [latent])#, XL.jacobian(latent,x)
+
+
 
 def make_model_2d_conv(example_frame, latent_size):
 
@@ -251,7 +278,8 @@ def make_model_2d_arnn(example_frame, simple=True):
 # TRAINING
 # ------------------------------------------------------------------------------
 
-model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=False)
+#model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=False)
+model, model2, encoder = make_model_2d_conv2latent(in_frames[0])
 #model, model2, encoder = make_model_2d_conv(in_frames[0], n_latent)
 
 
