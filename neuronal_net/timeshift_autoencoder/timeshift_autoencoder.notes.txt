@@ -50,6 +50,16 @@ OBSERVATIONS
 
 
 TODO / IDEAS
+
+• Residual Autoencoder
+  • train a autoencoder & train a second one on the error, i.e.
+    x' = A(x) = d(e(x))
+    r' = B(r) = g(f(r))   with  r = x - A(x)
+    → min |x' - A(r)|  and  min |r' - B(r)| = min |x - A(x) - B(x - A(x))|
+• combine high-freq power of ARNN and stability and long-term correlations of TAE using residual techniques
+  • ARNN on x-TAE(x)
+
+
 ✔ concatenate with x-fade
 ✔ try different shifts
 ✔ try different frame_size's
