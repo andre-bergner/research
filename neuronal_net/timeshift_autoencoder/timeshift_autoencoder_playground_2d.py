@@ -97,11 +97,27 @@ def part_rope_image(k=32):
    #make_signal = lambda n: img[100:260:4,:n].T
    kk = n_nodes*4
    make_signal = lambda n: np.concatenate([img[100:100+kk:4,:].T, img[100+kk:100+2*kk:4,:].T, img[100+2*kk:100+3*kk:4,:].T])[:n]
+
+   def make_training_set(n_pairs=n_pairs, frame_size=frame_size, shift=shift, n_out=1):
+      max_x = img.shape[0] - frame_size - shift*n_out - 1
+      max_y = img.shape[1] - n_nodes - 1
+      rnd = np.random.rand
+      in_frames = [] 
+      out_frames = []
+      out_frames2 = []
+      for n in range(n_pairs):
+         rnd_x = int(rnd() * max_x)
+         rnd_y = int(rnd() * max_y)
+         in_frames.append(img[rnd_x:rnd_x+frame_size, rnd_y:rnd_y+n_nodes])
+         out_frames.append(img[rnd_x+shift:rnd_x+frame_size+shift, rnd_y:rnd_y+n_nodes])
+         out_frames2.append(img[rnd_x+2*shift:rnd_x+frame_size+2*shift, rnd_y:rnd_y+n_nodes])
+      return np.array(in_frames), [np.array(out_frames), np.array(out_frames2)]
+
    loss_function = lambda y_true, y_pred: \
       0.5*mae(y_true, y_pred) + \
       mae(diff2(y_true), diff2(y_pred)) + \
       mae(diff2(diff2(y_true)), diff2(diff2(y_pred)))
-   return make_signal, loss_function
+   return make_training_set
 
 def full_rope_image():
    n_pairs = 2000
@@ -120,7 +136,7 @@ def full_rope_image():
 # n_nodes = 40
 # n_latent = 40
 # n_epochs = 50
-part_rope_image(64)
+frame_gen = part_rope_image(64)
 # make_signal, loss_function = full_rope_image()
 
 
@@ -129,6 +145,7 @@ part_rope_image(64)
 # ------------------------------------------------------------------------------
 
 in_frames, out_frames, next_samples, _ = TS.make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
+in_frames, out_frames = frame_gen(n_pairs=n_pairs, frame_size=frame_size, shift=shift, n_out=2)
 in_frames = in_frames.transpose(0,2,1)
 out_frames = [out_frames[0].transpose(0,2,1), out_frames[1].transpose(0,2,1)]
 next_samples = next_samples.reshape(-1,n_nodes,1)
@@ -279,8 +296,8 @@ def make_model_2d_arnn(example_frame, simple=True):
 # TRAINING
 # ------------------------------------------------------------------------------
 
-#model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=False)
-model, model2, encoder = make_model_2d_conv2latent(in_frames[0])
+model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=False)
+#model, model2, encoder = make_model_2d_conv2latent(in_frames[0])
 #model, model2, encoder = make_model_2d_conv(in_frames[0], n_latent)
 
 
@@ -295,7 +312,7 @@ model2.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 #tools.train(model2, in_frames, out_frames, 128, n_epochs, loss_recorder)
 tools.train(model, in_frames, out_frames[0], 32, n_epochs, loss_recorder)
 tools.train(model, in_frames, out_frames[0], 64, 5*n_epochs, loss_recorder)
-tools.train(model, in_frames, out_frames[0], 128, 5*n_epochs, loss_recorder)
+#tools.train(model, in_frames, out_frames[0], 128, 5*n_epochs, loss_recorder)
 
 #model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
 #tools.train(model, in_frames, out_frames[0], 32, n_epochs//20, loss_recorder)
