@@ -120,6 +120,7 @@ def part_rope_image(k=32):
    return make_training_set
 
 def full_rope_image():
+   global n_pairs, n_nodes, n_latent, n_epochs, make_signal, loss_function
    n_pairs = 2000
    n_nodes = 450
    n_latent = 40
@@ -136,8 +137,8 @@ def full_rope_image():
 # n_nodes = 40
 # n_latent = 40
 # n_epochs = 50
-frame_gen = part_rope_image(64)
-# make_signal, loss_function = full_rope_image()
+#frame_gen = part_rope_image(32)
+full_rope_image()
 
 
 # ------------------------------------------------------------------------------
@@ -145,7 +146,7 @@ frame_gen = part_rope_image(64)
 # ------------------------------------------------------------------------------
 
 in_frames, out_frames, next_samples, _ = TS.make_training_set(make_signal, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
-in_frames, out_frames = frame_gen(n_pairs=n_pairs, frame_size=frame_size, shift=shift, n_out=2)
+#in_frames, out_frames = frame_gen(n_pairs=n_pairs, frame_size=frame_size, shift=shift, n_out=2)
 in_frames = in_frames.transpose(0,2,1)
 out_frames = [out_frames[0].transpose(0,2,1), out_frames[1].transpose(0,2,1)]
 next_samples = next_samples.reshape(-1,n_nodes,1)
@@ -300,6 +301,7 @@ model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=False)
 #model, model2, encoder = make_model_2d_conv2latent(in_frames[0])
 #model, model2, encoder = make_model_2d_conv(in_frames[0], n_latent)
 
+model.load_weights('rope_texture2074_full_image___tae.hdf5')
 
 #tools.print_layer_outputs(model)
 model.summary()
@@ -310,8 +312,8 @@ loss_recorder = tools.LossRecorder()
 model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 model2.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 #tools.train(model2, in_frames, out_frames, 128, n_epochs, loss_recorder)
-tools.train(model, in_frames, out_frames[0], 32, n_epochs, loss_recorder)
-tools.train(model, in_frames, out_frames[0], 64, 5*n_epochs, loss_recorder)
+#tools.train(model, in_frames, out_frames[0], 32, n_epochs, loss_recorder)
+#tools.train(model, in_frames, out_frames[0], 64, 5*n_epochs, loss_recorder)
 #tools.train(model, in_frames, out_frames[0], 128, 5*n_epochs, loss_recorder)
 
 #model.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
@@ -423,4 +425,5 @@ def plot_image(model, n=10000, width=512):
 
 
 
-plot_prediction_im(1500, make_signal)
+#plot_prediction_im(1500, make_signal)
+plot_comp(model, 1500, make_signal, 300)
