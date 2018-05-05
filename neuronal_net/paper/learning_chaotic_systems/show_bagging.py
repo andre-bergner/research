@@ -122,13 +122,14 @@ in_frames, out_frames, next_samples, next_samples2 = TS.make_training_set(
 tae, *_ = make_nonlinear_model(in_frames[0], 3)
 tae.compile(optimizer=keras.optimizers.Adam(), loss='mae')
 #tae.load_weights('tae.ver2.hdf5')
-tae.load_weights('../nl_n128_s8_zdim3__long_train.ver2.hdf5')
+#tae.load_weights('../nl_n128_s8_zdim3__long_train.ver2.hdf5')
+tae.load_weights('../nl_n128_s8_zdim3.80_epochs.hdf5')
 
 sig = signal_gen(4096)
 pred_sig = P.predict_signal(tae, in_frames[0], shift, 4096)
 
 
-def plot_bagging(n_frames=100, zoom=False, legend_loc='best'):
+def plot_bagging(n_frames=120, zoom=False, legend_loc='best'):
    start_frame = in_frames[0:1].copy()
    frames = np.array([f[0] for f in P.generate_n_frames_from(tae, in_frames[0:1], n_frames)])
    times = [np.arange(n, n+frame_size) for n in shift*np.arange(n_frames)]
@@ -136,34 +137,52 @@ def plot_bagging(n_frames=100, zoom=False, legend_loc='best'):
    #for t, f in zip(times, frames):
    #   avg_frames[t] += f
 
-   avg_frames = start_frame[0].copy()
-   for f in frames[0:]:
-      avg_frames = P.xfade_append(avg_frames.T, f.T, shift).T
-   avg_frames = avg_frames[shift:]
+   #avg_frames = start_frame[0].copy()
+   #for f in frames[0:]:
+   #   avg_frames = P.xfade_append(avg_frames.T, f.T, shift).T
+   #avg_frames = avg_frames[shift:]
+
+   frames = []
+   frame = start_frame.copy()
+   #frame = start_frame.reshape([1] + list(start_frame.shape))
+   fad_frames = start_frame[0].copy()
+   for n in range(n_frames):
+      frame = tae.predict(frame)
+      fad_frames = P.xfade_append(fad_frames, frame[0], shift)
+      frame = fad_frames[-frame_size:].reshape([1] + list(start_frame[0].shape))
+      frames.append(frame[0])
+   fad_frames = fad_frames[shift:]
+
+   avg_frames = np.zeros(times[-1][-1]+1)
+   for t, f in zip(times, frames):
+      avg_frames[t] += f
+   avg_frames *= shift/frame_size
 
    con_frames = np.concatenate([ start_frame[0], *[f[-shift:] for f in frames] ])
 
    linewidth = 1 if not zoom else 2
    pl.figure(figsize=(8,3))
    ax = pl.gca()
-   label = r'$\mathbf{\hat{\xi}}_n$ (predicted frames)'
+   label = r'$\mathbf{\hat{\Xi}}$ (predicted frames)'
    for t, f in zip(times, frames):
       pl.plot(t, f, color='dodgerblue', alpha=0.4, label=label)
       label = None
-   #pl.plot(avg_frames*shift/frame_size, color='k')
-   pl.plot(sig[shift:shift+len(avg_frames)], color='r', linewidth=linewidth, label=r'$\hat{x}_n$ (averaged prediction)')
-   pl.plot(avg_frames, color='k', linewidth=linewidth, label=r'$x_n$ (ground truth)')
+   pl.plot(sig[shift:shift+len(fad_frames)], linestyle='--', color='k', linewidth=linewidth, label=r'$x_n$ (ground truth)')
+   pl.plot(fad_frames, color='blue', linewidth=linewidth, label=r'$\hat{x}_n$ (faded averaged prediction)')
+   pl.plot(avg_frames, color='red', linewidth=linewidth, label=r'$\hat{x}_n$ (averaged prediction)')
    if zoom:
-      ax.set_xlim([350, 450])
-      ax.set_ylim([-0.1, 0.4])
+      #ax.set_xlim([350, 450])
+      #ax.set_ylim([-0.1, 0.4])
+      ax.set_xlim([610, 760])
+      ax.set_ylim([-0.9, 0.5])
    else:
-      ax.set_xlim([200, 800])
+      ax.set_xlim([400, 1000])
    ax.set_xlabel(r'$n$ (samples)', fontsize=16)
    ax.set_ylabel(r'$x_n$', fontsize=16)
-   pl.legend(loc=legend_loc)
+   pl.legend(loc=legend_loc, fontsize=14)
    pl.tight_layout()
 
-   return avg_frames, con_frames
+   return frames, avg_frames, con_frames
 
 plot_bagging(legend_loc='lower left')
 plot_bagging(zoom=True)
