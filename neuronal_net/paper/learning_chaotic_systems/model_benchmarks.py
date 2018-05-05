@@ -26,7 +26,7 @@ import pylab as pl
 
 frame_size = 128
 shift = 8
-n_latent = 8
+n_latent = 3
 in_noise_stddev = 0.03
 code_noise_stddev = 0.03
 n_pairs = 10000
@@ -34,6 +34,7 @@ n_epochs = 100
 resample = 1
 
 signal_gen = lambda n: TS.lorenz(resample*n)[::resample]
+signal_gen3 = lambda n: TS.lorenz_all(resample*n)[::resample]
 #signal_gen = lambda n: TS.hindmarsh_rose3(20*n, [0,0,4], 3.85, -1.744)[::20,0]
 
 
@@ -206,7 +207,7 @@ def prediction_dist(predictor, num_pred=10, pred_frames=5):
 
 arnn = arnn_model(in_frames[0])
 parnn = parnn_model(in_frames[0])
-tae, *_ = tae_model(in_frames[0])
+tae, _, encoder, _ = tae_model(in_frames[0])
 tae21, tae22, *_ = tae_model(in_frames[0])
 
 parnn_metrics = Metrics(fun.bind(P.predict_par_model, arnn, start_frame=in_frames[0], n_samples=2048))
@@ -225,21 +226,25 @@ def train_model(model, ins, outs, metrics_recorder,loss=loss_function):
    tools.train(model, ins, outs, 32, n_epochs, metrics_recorder)
    tools.train(model, ins, outs, 128, n_epochs, metrics_recorder)
 
-train_model(parnn, in_frames, next_samples_p, parnn_metrics, loss=keras.losses.categorical_crossentropy)
-train_model(arnn, in_frames, next_samples, arnn_metrics)
-train_model(tae, in_frames, out_frames[0], tae_metrics)
-train_model(tae22, in_frames, out_frames, tae2_metrics)
+# train_model(parnn, in_frames, next_samples_p, parnn_metrics, loss=keras.losses.categorical_crossentropy)
+# train_model(arnn, in_frames, next_samples, arnn_metrics)
+# train_model(tae, in_frames, out_frames[0], tae_metrics)
+# train_model(tae22, in_frames, out_frames, tae2_metrics)
 
-# parnn.save_weights('parnn.ver2.hdf5')
-# arnn.save_weights('arnn.ver2.hdf5')
-# tae.save_weights('tae.ver2.hdf5')
-# tae22.save_weights('tae22.ver2.hdf5')
+# parnn.save_weights('parnn.z3.ver1.hdf5')
+# arnn.save_weights('arnn.z3.ver1.hdf5')
+# tae.save_weights('tae.z3.ver1.hdf5')
+# tae22.save_weights('tae22.z3.ver1.hdf5')
+parnn.load_weights('parnn.z3.ver1.hdf5')
+arnn.load_weights('arnn.z3.ver1.hdf5')
+tae.load_weights('tae.z3.ver1.hdf5')
+tae22.load_weights('tae22.z3.ver1.hdf5')
 
 sig = signal_gen(4096)
 pred_par_sig = P.predict_par_model(parnn, in_frames[0], 4096)
 pred_ar_sig = P.predict_ar_model(arnn, in_frames[0], 4096)
-pred_sig = P.predict_signal(tae, in_frames[0], shift, 4096)
-pred_sig2 = P.predict_signal(tae21, in_frames[0], shift, 4096)
+pred_sig = P.predict_signal2(tae, in_frames[0], shift, 4096)
+pred_sig2 = P.predict_signal2(tae21, in_frames[0], shift, 4096)
 
 #f0 = np.random.rand(*in_frames[0].shape)
 #pred_par_sig = P.predict_par_model(parnn, f0, 4096)
@@ -279,3 +284,62 @@ def plot_trajectories(n=2000):
 
 
 plot_results()
+
+
+
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.colors import LightSource
+import matplotlib.patches as patches
+
+from matplotlib.patches import FancyArrowPatch
+from mpl_toolkits.mplot3d import proj3d
+
+def plot_tae_results(n=2500):
+   sig3 = signal_gen3(3000)[1000:]
+
+   fig = pl.figure(figsize=(10,2))
+   ax1 = fig.add_axes([0.07, 0.3, 0.45, 0.6])
+   ax2 = fig.add_axes([0.58, 0.15, 0.18, 0.75], projection='3d')
+   ax3 = fig.add_axes([0.78, 0.15, 0.18, 0.75], projection='3d')
+   fig.text(0.02, 0.85, 'a)', fontsize=16)
+   fig.text(0.57, 0.85, 'b)', fontsize=16)
+   fig.text(0.76, 0.85, 'c)', fontsize=16)
+
+   ax1.plot(sig[:n], color='k', label='groud truth')
+   ax1.plot(pred_sig[:n], color='dodgerblue', label='SAE')
+   ax1.set_xlabel(r'$n$ (samples)', fontsize=16)
+   ax1.set_ylabel(r'$x_n$, $\hat{x}_n$', fontsize=16)
+   ax1.set_xlim([-10,n])
+   ax1.set_yticks([-1,0,1])
+   ax1.plot([frame_size, frame_size], [-1,1], '--r')
+   ax1.legend(loc='upper right')
+
+   ax2.plot(*sig3.T, 'k', linewidth=0.5)
+   ax2.view_init(13, -45)
+   ax2.set_xticklabels([])
+   ax2.set_yticklabels([])
+   ax2.set_zticklabels([])
+   ax2.set_xlabel(r'$u_1$', fontsize=14)
+   ax2.set_ylabel(r'$u_2$', fontsize=14)
+   ax2.set_zlabel(r'$u_3$', fontsize=14)
+   ax2.xaxis.labelpad = -12
+   ax2.yaxis.labelpad = -12
+   ax2.zaxis.labelpad = -12
+
+   predict_gen = lambda n: P.predict_signal2(tae, in_frames[0], shift, n)
+   pred_frames, *_ = TS.make_training_set(predict_gen, frame_size=frame_size, n_pairs=5000, shift=shift)
+   code = encoder.predict(pred_frames)
+   ax3.plot(*code.T, color='dodgerblue', linewidth=0.5)
+   ax3.view_init(30, -25)
+   ax3.set_xticklabels([])
+   ax3.set_yticklabels([])
+   ax3.set_zticklabels([])
+   ax3.set_xlabel(r'$z_1$', fontsize=14)
+   ax3.set_ylabel(r'$z_2$', fontsize=14)
+   ax3.set_zlabel(r'$z_3$', fontsize=14)
+   ax3.xaxis.labelpad = -12
+   ax3.yaxis.labelpad = -12
+   ax3.zaxis.labelpad = -12
+
+plot_tae_results()
