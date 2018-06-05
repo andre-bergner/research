@@ -115,7 +115,7 @@ def dwt_bank(analysis_wavelet_pair, num_levels=3, input_len=None, num_features=1
       # return L.Flatten()(downmix)
       return L.Flatten()(level_synth_v)
 
-   return  analysis, synthesis
+   return  fun._ >> analysis, fun._ >> synthesis
 
 
 def make_model(num_levels=3, n_latent=10, input_len=None):
@@ -124,7 +124,6 @@ def make_model(num_levels=3, n_latent=10, input_len=None):
    input = L.Input(shape=(input_len,))
 
    ana, syn = dwt_bank(analysis_wavelet_pair, num_levels, input_len, num_features, shared_weights_in_cascade)
-   ana = fun._ >> ana
    return M.Model([input], [(ana >> syn)(input)])
 
    ### some preliminary attempts to compare wavelet-AE with pure AE:
@@ -181,3 +180,5 @@ def plot_transfer_function(weight_id,channel1=0,channel2=0):
    w,H = ss.freqz(model.get_weights()[weight_id][:,channel1,channel2], 1024)
    plot(w, abs(H))
 
+#from keras.utils import plot_model
+#plot_model(model, to_file='wavelet_autoencoder.png')
