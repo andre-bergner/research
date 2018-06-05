@@ -99,7 +99,8 @@ def gen_sinousoid_and_circle(N=512, mod=0):
 
 #data = gen_sinousoid_and_circle(mod=0.5)
 #data = np.array([random_sinusoid(decay=0) for n in range(num_data)])
-data = gen_sinusoids(freq_gen=fun.bind(gen_log_freq, max=0.5*pi, random=True))
+#data = gen_sinusoids(freq_gen=fun.bind(gen_log_freq, max=0.5*pi, random=True))
+data = gen_sinusoids(freq_gen=fun.bind(gen_lin_freq, min=0.05*pi, max=0.9*pi, random=True))
 #data = gen_sinusoids(freq_gen=fun.bind(gen_log_freq, min=1, max=0.9*pi))
 
 #data, *_ = make_training_set(lorenz, frame_size=sig_len, n_pairs=4000, shift=16, n_out=1)
@@ -151,9 +152,9 @@ def make_dense_model():
    encoder = enc1 >> enc2 >> enc3
    decoder = dec3 >> dec2 >> dec1
    y = eta() >> encoder >> decoder
-   y1 = eta() >> enc1 >> dec1
-   y2 = eta() >> enc1 >> enc2 >> dec2 >> dec1
-   return  M.Model([x], [y(x)]), M.Model([x], [y(x), y(y(x))])
+   #y1 = eta() >> enc1 >> dec1
+   #y2 = eta() >> enc1 >> enc2 >> dec2 >> dec1
+   return  M.Model([x], [y(x)]), M.Model([x], [y(x), y(y(x)), y(y(y(x)))])
    #return  M.Model([x], [y(x)]), M.Model([x], [y(x), y(y(x)), y(y(y(x)))])
    #return  M.Model([x], [y(x)]), M.Model([x], [y(x), y1(x), y2(x), y(y(x))])
 
@@ -261,14 +262,20 @@ def train_gready():
 #code1, code2, code3 = train_gready()
 
 
-model2.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
-train(model2, data, data, 64, 2000, loss_recorder)
+#model.compile(optimizer=keras.optimizers.Adam(), loss='mse')
+#train(model, data, data, 64, 1000, loss_recorder)
 
-model2.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
-train(model2, data, data, 64, 3000, loss_recorder)
+model2.compile(optimizer=keras.optimizers.Adam(), loss='mse')
+train(model2, data, data, 64, 1000, loss_recorder)
 
-model2.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
-train(model2, data, data, 64, 2000, loss_recorder)
+# model2.compile(optimizer=keras.optimizers.SGD(lr=0.5), loss=loss_function)
+# train(model2, data, data, 64, 2000, loss_recorder)
+# 
+# model2.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=loss_function)
+# train(model2, data, data, 64, 3000, loss_recorder)
+# 
+# model2.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
+# train(model2, data, data, 64, 2000, loss_recorder)
 
 model.compile(optimizer=keras.optimizers.SGD(lr=0.01), loss=loss_function)
 
@@ -295,7 +302,7 @@ def dist(x,y):
    d = x - y
    return sqrt(np.dot(d,d))/len(x)
 
-print("computing distances...")
+#print("computing distances...")
 #distances0 = np.array([[dist(x,y) for x in data] for y in data])
 #distances1 = np.array([[dist(x,y) for x in code1] for y in code1])
 #distances2 = np.array([[dist(x,y) for x in code2] for y in code2])
