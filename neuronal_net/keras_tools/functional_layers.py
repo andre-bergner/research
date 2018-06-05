@@ -15,15 +15,15 @@ def input_like(x):
    return L.Input(shape=x.shape)
 
 
-def dense(out_shape, activation=None, use_bias=True):
+def dense(out_shape, *args, **kwargs):
    assert len(out_shape) > 0
    _ = fun._
    if len(out_shape) == 1:
       # TODO add dependent flatten
-      return _ >> L.Dense(units=out_shape[0], activation=activation, use_bias=use_bias)
+      return _ >> L.Dense(units=out_shape[0], *args, **kwargs)
    else:
       units = reduce(lambda x,y: x*y, out_shape)
-      return _ >> L.Dense(units=units, activation=activation, use_bias=use_bias) >> L.Reshape(out_shape)
+      return _ >> L.Dense(units=units, *args, **kwargs) >> L.Reshape(out_shape)
 
 def conv1d(num_feat, kernel_size, stride, activation = None, use_bias=True, padding='same', *args, **kwargs):
    return fun._ >> L.Conv1D(
