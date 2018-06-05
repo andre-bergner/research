@@ -35,15 +35,17 @@ def rk4(f, x0, t0, dt, N):
       x[n+1] = x[n] + (dt/6.)*(f1 + 2*f2 + 2*f3 + f4)
    return x
 
-def lorenz(n_samples=10000, init=[1,0,0]):
+def lorenz_all(n_samples=10000, init=[1,0,0]):
    def ode(x, t):
       return np.array([
          10 * (x[1] - x[0]),
          x[0] * (28 - x[2]) - x[1],
          x[0] * x[1] - (8./3.) * x[2]
       ])
-   return rk4(ode, np.array(init), 0., 0.01, 1000+n_samples-1)[1000:,0] / 20
+   return rk4(ode, np.array(init), 0., 0.01, 1000+n_samples-1)[1000:] / 20
 
+def lorenz(n_samples=10000, init=[1,0,0]):
+   return lorenz_all(n_samples, init)[:,0]
 
 def hindmarsh_rose3(n_samples=10000, init=[0,0,3], i0=3., xr=-8./5.):
    a = 1.0
@@ -67,7 +69,7 @@ def hindmarsh_rose3(n_samples=10000, init=[0,0,3], i0=3., xr=-8./5.):
          c - d*x[0]*x[0] - x[1],
          r * (s*(x[0]-xr) - x[2]),
       ])
-   return rk4(ode, np.array(init), 0., 0.01, 1000+n_samples-1)[1000:,0] / 20
+   return rk4(ode, np.array(init), 0., 0.01, 1000+n_samples-1)[1000:] / 20
 
 
 def hindmarsh_rose4(n_samples=10000, init=[1,0,0,0]):
