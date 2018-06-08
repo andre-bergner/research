@@ -76,14 +76,17 @@ def reshape(out_shape):
 def flatten(*args, **kwargs):
    return fun._ >> L.Flatten(*args, **kwargs)
 
+def crop1d(*args, **kwargs):
+   return fun._ >> L.Cropping1D(*args, **kwargs)
+
 def dropout(*args, **kwargs):
    return fun._ >> L.Dropout(*args, **kwargs)
 
 def batch_norm(*args, **kwargs):
    return fun._ >> L.BatchNormalization(*args, **kwargs)
 
-def noise(stddev, *args, **kwargs):
-   return fun._ >> L.GaussianNoise(stddev)
+def noise(*args, **kwargs):
+   return fun._ >> L.GaussianNoise(*args, **kwargs)
 
 def input_like(x):
    return L.Input(shape=x.shape)
