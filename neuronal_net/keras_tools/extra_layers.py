@@ -20,7 +20,13 @@ class SliceFactory:
 SLICE = SliceFactory()
 
 
-class Slice(Layer):
+class MetaSlice(type):
+
+    def __getitem__(self, idx):
+        return Slice(idx)
+
+
+class Slice(Layer, metaclass=MetaSlice):
     """Slice layer
 
     It slice the input tensor with the provided slice tuple
@@ -74,7 +80,6 @@ class Slice(Layer):
         config = {'slices': self.slices}
         base_config = super(Slice, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
-
 
 
 
