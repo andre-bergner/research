@@ -1,3 +1,8 @@
+# TRY
+# • simplify (remove layers) from decoder
+# • simplify parallel AE
+# • multi-pass ShAE
+
 import numpy as np
 
 import keras
@@ -20,10 +25,10 @@ from timeshift_autoencoder import predictors as P
 
 frame_size = 80
 shift = 8
-n_pairs = 5000
-n_latent1 = 2
+n_pairs = 50000
+n_latent1 = 3
 n_latent2 = 3
-n_epochs = 100
+n_epochs = 10
 noise_stddev = 0.1
 
 
@@ -73,7 +78,14 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    #reconstruction_loss = keras.losses.mean_squared_error
    def loss_f(args):
       y_true, y_pred = args
-      return K.mean(K.square(y_true - y_pred))
+      l2 = K.mean(K.square(y_true - y_pred))
+      return l2
+      #return l2 + 0.01 * K.exp(-K.square(K.mean(y1(x) - y2(x))))
+      #return l2 + 10*K.square(K.mean(y1(x) * y2(x))) / ( K.mean(K.square(y1(x))) * K.mean(K.square(y2(x))) )
+      #return l2 / (1. + K.tanh(K.mean(K.square(y1(x) - y2(x)))))
+      #return l2 - 0.01 * K.tanh(0.01*K.mean(K.square(y1(x) - y2(x))))
+      #return l2 / (100. + K.mean(K.square(y1(x) - y2(x))))
+      #return l2 / (10. + K.mean(K.square(y1(x) / (1.+K.abs(y2(x))) + y2(x) / (1.+K.abs(y1(x)))     )))
 
    loss = L.Lambda(loss_f, output_shape=(1,))
 
@@ -144,6 +156,8 @@ def build_prediction(model, num=2000):
 sin1 = lambda n: 0.64*np.sin(0.05*np.arange(n))
 tanhsin1 = lambda n: 0.6*np.tanh(4*np.sin(0.05*np.arange(n)))
 fm_soft = lambda n: np.sin(0.07*np.arange(n) + 4*np.sin(0.00599291*np.arange(n)))
+fm_soft1 = lambda n: np.sin(np.pi*0.05*np.arange(n) + 3*np.sin(0.00599291*np.arange(n)))
+fm_soft1 = lambda n: np.sin(np.pi*0.05*np.arange(n) + 6*np.sin(0.00599291*np.arange(n)))
 fm_soft2 = lambda n: np.sin(0.15*np.arange(n) + 18*np.sin(0.00599291*np.arange(n)))
 fm_med = lambda n: np.sin(0.1*np.arange(n) + 1*np.sin(0.11*np.arange(n)))
 fm_strong = lambda n: np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)))
@@ -151,8 +165,8 @@ fm_hyper = lambda n: np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)) + 2*
 lorenz = lambda n: TS.lorenz(n, [1,0,0])[::1]
 lorenz2 = lambda n: TS.lorenz(n+15000, [0,-1,0])[15000:]
 sig1 = lorenz
-sig2 = lambda n: 0.3*np.sin(np.pi*0.05*np.arange(n))
-#sig2 = lorenz2
+#sig2 = lambda n: 0.3*np.sin(np.pi*0.05*np.arange(n))
+sig2 = fm_soft1
 make_2freq = lambda n: sig1(n) + sig2(n)
 
 frames, out_frames, *_ = TS.make_training_set(make_2freq, frame_size=frame_size, n_pairs=n_pairs, shift=shift)
