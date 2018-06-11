@@ -66,9 +66,18 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    # y = eta() >> encoder >> eta() >> decoder
    y1 = eta() >> encoder >> eta() >> decoder1
    y2 = eta() >> encoder >> eta() >> decoder2
-   add = L.Add()
+   y = lambda x: L.Add()([y1(x), y2(x)])
    # latent = encoder(x)
-   return M.Model([x], [add([y1(x), y2(x)])]), M.Model([x], [y1(x)]), M.Model([x], [y2(x)])
+
+   #distangle_pressure = lambda -keras.losses.mean_squared_error()
+   #reconstruction_loss = keras.losses.mean_squared_error
+   def loss_f(args):
+      y_true, y_pred = args
+      return K.mean(K.square(y_true - y_pred))
+
+   loss = L.Lambda(loss_f, output_shape=(1,))
+
+   return M.Model([x], [loss([x, y(x)])]), M.Model([x], [y(x)]), M.Model([x], [y1(x)]), M.Model([x], [y2(x)])
 
 
 
@@ -140,7 +149,7 @@ fm_med = lambda n: np.sin(0.1*np.arange(n) + 1*np.sin(0.11*np.arange(n)))
 fm_strong = lambda n: np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)))
 fm_hyper = lambda n: np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)) + 2*np.sin(0.009*np.arange(n)))
 lorenz = lambda n: TS.lorenz(n, [1,0,0])[::1]
-lorenz2 = lambda n: TS.lorenz(n, [0,-1,0])[::1]
+lorenz2 = lambda n: TS.lorenz(n+15000, [0,-1,0])[15000:]
 sig1 = lorenz
 sig2 = lambda n: 0.3*np.sin(np.pi*0.05*np.arange(n))
 #sig2 = lorenz2
@@ -151,16 +160,18 @@ frames, out_frames, *_ = TS.make_training_set(make_2freq, frame_size=frame_size,
 
 
 
-model, mode1, mode2 = make_model(frames[0])
-model.compile(optimizer=keras.optimizers.Adam(), loss='mse')
-model.summary()
-
+trainer, model, mode1, mode2 = make_model(frames[0])
+#model.compile(optimizer=keras.optimizers.Adam(), loss='mse')
+#model.summary()
+trainer.compile(optimizer=keras.optimizers.Adam(), loss=lambda y_true, y_pred:y_pred)
+trainer.summary()
 
 loss_recorder = tools.LossRecorder()
 #tools.train(model, frames, out_frames[0], 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 128, 15*n_epochs, loss_recorder)
-tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
-tools.train(model, frames, frames, 128, 15*n_epochs, loss_recorder)
+#tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
+#tools.train(model, frames, frames, 128, 15*n_epochs, loss_recorder)
+tools.train(trainer, frames, frames, 32, n_epochs, loss_recorder)
 
 
 
