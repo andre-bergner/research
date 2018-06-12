@@ -50,15 +50,18 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
              >> F. dense([latent_size]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
              )
 
-   slice1 = F.fun._ >> XL.Slice[:,0:latent_sizes[0]]
-   decoder1 = (  slice1
+   slice1 = XL.Slice[:,0:latent_sizes[0]]
+   #slice1.activity_regularizer = lambda x: 1. / (10. + K.mean(K.square((x))))
+   #slice1.activity_regularizer = lambda x: K.exp(-K.mean(K.square((x))))
+   decoder1 = (  F.fun._ >> slice1
               >> F.dense([sig_len//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
               >> F.dense([sig_len//2]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
               >> F.dense([sig_len]) 
               )
 
-   slice2 = F.fun._ >> XL.Slice[:,latent_sizes[0]:]
-   decoder2 = (  slice2
+   slice2 = XL.Slice[:,latent_sizes[0]:]
+   #slice2.activity_regularizer = lambda x: 1. / (0.001 + K.mean(K.square((x))))
+   decoder2 = (  F.fun._ >> slice2
               >> F.dense([sig_len//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
               >> F.dense([sig_len//2]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
               >> F.dense([sig_len]) 
@@ -72,18 +75,19 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    y1 = eta() >> encoder >> eta() >> decoder1
    y2 = eta() >> encoder >> eta() >> decoder2
    y = lambda x: L.Add()([y1(x), y2(x)])
-   # latent = encoder(x)
 
    #distangle_pressure = lambda -keras.losses.mean_squared_error()
    #reconstruction_loss = keras.losses.mean_squared_error
    def loss_f(args):
       y_true, y_pred = args
-      return K.mean(K.square(y_true - y_pred))
-      #return K.mean(K.square(y_true - y_pred)) + 0.01 * K.square(K.mean(y1(x) * y2(x)))
-      #return K.mean(K.square(y_true - y_pred)) / (1. + K.tanh(K.mean(K.square(y1(x) - y2(x)))))
-      #return K.mean(K.square(y_true - y_pred)) - 0.01 * K.tanh(0.01*K.mean(K.square(y1(x) - y2(x))))
-      #return K.mean(K.square(y_true - y_pred)) / (100. + K.mean(K.square(y1(x) - y2(x))))
-      #return K.mean(K.square(y_true - y_pred)) / (10. + K.mean(K.square(y1(x) / (1.+K.abs(y2(x))) + y2(x) / (1.+K.abs(y1(x)))     )))
+      l2 = K.mean(K.square(y_true - y_pred))
+      #return l2
+      return l2 + 0.01 * K.exp(-K.square(K.mean(y1(x) - y2(x))))
+      #return l2 + 10*K.square(K.mean(y1(x) * y2(x))) / ( K.mean(K.square(y1(x))) * K.mean(K.square(y2(x))) )
+      #return l2 / (1. + K.tanh(K.mean(K.square(y1(x) - y2(x)))))
+      #return l2 - 0.01 * K.tanh(0.01*K.mean(K.square(y1(x) - y2(x))))
+      #return l2 / (100. + K.mean(K.square(y1(x) - y2(x))))
+      #return l2 / (10. + K.mean(K.square(y1(x) / (1.+K.abs(y2(x))) + y2(x) / (1.+K.abs(y1(x)))     )))
 
    loss = L.Lambda(loss_f, output_shape=(1,))
 
@@ -174,23 +178,26 @@ sig1 = lorenz
 sig2 = sin2
 make_2freq = lambda n: sig1(n) + sig2(n)
 
-frames, out_frames, *_ = TS.make_training_set(make_2freq, frame_size=frame_size, n_pairs=n_pairs, shift=shift)
+frames, out_frames, *_ = TS.make_training_set(make_2freq, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 
 
 
 
 trainer, model, model2, mode1, mode2, encoder = make_model(frames[0])
-#model.compile(optimizer=keras.optimizers.Adam(), loss='mse')
-#model.summary()
-trainer.compile(optimizer=keras.optimizers.Adam(), loss=lambda y_true, y_pred:y_pred)
-trainer.summary()
+model.compile(optimizer=keras.optimizers.Adam(), loss='mse')
+model.summary()
+#model2.compile(optimizer=keras.optimizers.Adam(), loss='mse')
+#model2.summary()
+#trainer.compile(optimizer=keras.optimizers.Adam(), loss=lambda y_true, y_pred:y_pred)
+#trainer.summary()
 
 loss_recorder = tools.LossRecorder()
+#tools.train(model2, frames, out_frames, 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 128, 15*n_epochs, loss_recorder)
-#tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
+tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
 #tools.train(model, frames, frames, 128, 15*n_epochs, loss_recorder)
-tools.train(trainer, frames, frames, 32, n_epochs, loss_recorder)
+#tools.train(trainer, frames, frames, 32, n_epochs, loss_recorder)
 
 
 
@@ -226,6 +233,7 @@ def plot_orig_vs_reconst(n=2000):
    plot(build_prediction(model, n))
    plot(make_2freq(n))
 
+code = encoder.predict(frames)
 
 plot_modes2()
 
