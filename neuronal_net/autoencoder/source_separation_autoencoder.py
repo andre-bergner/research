@@ -203,16 +203,19 @@ frames, out_frames, *_ = TS.make_training_set(make_2freq, frame_size=frame_size,
 
 trainer, model, model2, mode1, mode2, encoder, dzdx = make_model(frames[0])
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
-#model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
-#model.summary()
+model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
+model.summary()
+x = F.input_like(frames[0])
+cheater = M.Model([x], [mode1(x), mode2(x)])
+cheater.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 #model2.compile(optimizer=keras.optimizers.Adam(), loss='mse')
 #model2.summary()
 #trainer.compile(optimizer=keras.optimizers.Adam(), loss=lambda y_true, y_pred:y_pred)
 #trainer.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=lambda y_true, y_pred:y_pred)
 #trainer.summary()
 
-mode1.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
-mode1.summary()
+#mode1.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
+#mode1.summary()
 
 
 
@@ -220,10 +223,11 @@ loss_recorder = tools.LossRecorder()
 #tools.train(model2, frames, out_frames, 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 128, 15*n_epochs, loss_recorder)
-#tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
+tools.train(cheater, frames, [frames1, frames2], 32, n_epochs, loss_recorder)
+tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
 #tools.train(model, frames, frames, 128, 15*n_epochs, loss_recorder)
 #tools.train(trainer, frames, frames, 32, n_epochs, loss_recorder)
-tools.train(mode1, frames, frames, 32, n_epochs, loss_recorder)
+#tools.train(mode1, frames, frames, 32, n_epochs, loss_recorder)
 
 
 
