@@ -76,13 +76,15 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    y2 = eta() >> encoder >> eta() >> decoder2
    y = lambda x: L.Add()([y1(x), y2(x)])
 
+   dzdx = XL.jacobian(encoder(x),x)
+
    #distangle_pressure = lambda -keras.losses.mean_squared_error()
    #reconstruction_loss = keras.losses.mean_squared_error
    def loss_f(args):
       y_true, y_pred = args
       l2 = K.mean(K.square(y_true - y_pred))
-      #return l2
-      return l2 + 0.01 * K.exp(-K.square(K.mean(y1(x) - y2(x))))
+      return l2
+      #return l2 + 0.01 * K.exp(-K.square(K.mean(y1(x) - y2(x))))
       #return l2 + 10*K.square(K.mean(y1(x) * y2(x))) / ( K.mean(K.square(y1(x))) * K.mean(K.square(y2(x))) )
       #return l2 / (1. + K.tanh(K.mean(K.square(y1(x) - y2(x)))))
       #return l2 - 0.01 * K.tanh(0.01*K.mean(K.square(y1(x) - y2(x))))
@@ -97,7 +99,8 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
       M.Model([x], [y(x), y(y(x))]),
       M.Model([x], [y1(x)]),
       M.Model([x], [y2(x)]),
-      M.Model([x], [encoder(x)])
+      M.Model([x], [encoder(x)]),
+      dzdx
    )
 
 
@@ -183,8 +186,9 @@ frames, out_frames, *_ = TS.make_training_set(make_2freq, frame_size=frame_size,
 
 
 
-trainer, model, model2, mode1, mode2, encoder = make_model(frames[0])
-model.compile(optimizer=keras.optimizers.Adam(), loss='mse')
+trainer, model, model2, mode1, mode2, encoder, dzdx = make_model(frames[0])
+loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) + 0.001*K.sum(dzdx*dzdx)
+model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 model.summary()
 #model2.compile(optimizer=keras.optimizers.Adam(), loss='mse')
 #model2.summary()
