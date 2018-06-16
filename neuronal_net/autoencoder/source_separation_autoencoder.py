@@ -36,7 +36,8 @@ noise_stddev = 0.1
 
 
 activation = fun.bind(XL.tanhx, alpha=0.1)
-act = lambda: L.Activation(activation)
+#act = lambda: L.Activation(activation)
+act = lambda: L.LeakyReLU(alpha=0.2)
 
 
 def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
@@ -86,10 +87,10 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    def loss_f(args):
       y_true, y_pred = args
       l2 = K.mean(K.square(y_true - y_pred))
-      #return l2
+      return l2
       #return l2 + 0.1 * K.exp(-K.square(K.mean(y1(x) - y2(x))))
       #return l2 + 10*K.square(K.mean(y1(x) * y2(x))) / ( K.mean(K.square(y1(x))) * K.mean(K.square(y2(x))) )
-      return l2 + .1*K.square(K.mean( (y1(x)-K.mean(y1(x))) * (y2(x)-K.mean(y2(x))) )) / ( K.mean(K.square(y1(x)-K.mean(y1(x)))) * K.mean(K.square(y2(x)-K.mean(y2(x)))) )
+      #return l2 + .1*K.square(K.mean( (y1(x)-K.mean(y1(x))) * (y2(x)-K.mean(y2(x))) )) / ( K.mean(K.square(y1(x)-K.mean(y1(x)))) * K.mean(K.square(y2(x)-K.mean(y2(x)))) )
       #return l2 / (1. + K.tanh(K.mean(K.square(y1(x) - y2(x)))))
       #return l2 - 0.01 * K.tanh(0.01*K.mean(K.square(y1(x) - y2(x))))
       #return l2 / (100. + K.mean(K.square(y1(x) - y2(x))))
