@@ -36,8 +36,8 @@ noise_stddev = 0.1
 
 
 activation = fun.bind(XL.tanhx, alpha=0.1)
-#act = lambda: L.Activation(activation)
-act = lambda: L.LeakyReLU(alpha=0.2)
+act = lambda: L.Activation(activation)
+#act = lambda: L.LeakyReLU(alpha=0.2)
 
 
 def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
@@ -197,7 +197,8 @@ loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y
 #model.summary()
 #model2.compile(optimizer=keras.optimizers.Adam(), loss='mse')
 #model2.summary()
-trainer.compile(optimizer=keras.optimizers.Adam(), loss=lambda y_true, y_pred:y_pred)
+#trainer.compile(optimizer=keras.optimizers.Adam(), loss=lambda y_true, y_pred:y_pred)
+trainer.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=lambda y_true, y_pred:y_pred)
 trainer.summary()
 
 loss_recorder = tools.LossRecorder()
