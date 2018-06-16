@@ -39,6 +39,16 @@ activation = fun.bind(XL.tanhx, alpha=0.1)
 act = lambda: L.Activation(activation)
 #act = lambda: L.LeakyReLU(alpha=0.2)
 
+dense = F.dense
+#dense = fun._ >> fun.bind(
+def dense(out_shape, *args, **kwargs):
+   return fun._ >> L.Dense(units=out_shape[0], kernel_initializer='he_normal')#, bias_initializer=keras.initializers.he_normal)
+#dense = fun.bind(
+#   F.dense,
+#   kernel_initializer=keras.initializers.he_normal
+#   bias_initializer=keras.initializers.he_normal
+#)
+
 
 def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
 
@@ -49,26 +59,26 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    latent_size = sum(latent_sizes)
 
 
-   encoder = (  F. dense([sig_len//2])  >> act()                   # >> F.dropout(0.2)
-             >> F. dense([sig_len//4])  >> act() #>> F.batch_norm() # >> F.dropout(0.2)
-             >> F. dense([latent_size]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+   encoder = (  dense([sig_len//2])  >> act()                   # >> F.dropout(0.2)
+             >> dense([sig_len//4])  >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+             >> dense([latent_size]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
              )
 
    slice1 = XL.Slice[:,0:latent_sizes[0]]
    #slice1.activity_regularizer = lambda x: 1. / (10. + K.mean(K.square((x))))
    #slice1.activity_regularizer = lambda x: K.exp(-K.mean(K.square((x))))
    decoder1 = (  F.fun._ >> slice1
-              >> F.dense([sig_len//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
-              >> F.dense([sig_len//2]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
-              >> F.dense([sig_len]) 
+              >> dense([sig_len//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+              >> dense([sig_len//2]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+              >> dense([sig_len]) 
               )
 
    slice2 = XL.Slice[:,latent_sizes[0]:]
    #slice2.activity_regularizer = lambda x: 1. / (0.001 + K.mean(K.square((x))))
    decoder2 = (  F.fun._ >> slice2
-              >> F.dense([sig_len//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
-              >> F.dense([sig_len//2]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
-              >> F.dense([sig_len]) 
+              >> dense([sig_len//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+              >> dense([sig_len//2]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+              >> dense([sig_len]) 
               )
 
    # IDEAS:
