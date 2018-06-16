@@ -3,6 +3,9 @@
 # • simplify parallel AE
 # • multi-pass ShAE
 
+# TERMS
+# • factorization
+
 import numpy as np
 
 import keras
@@ -26,7 +29,7 @@ from timeshift_autoencoder import predictors as P
 frame_size = 80
 shift = 8
 n_pairs = 5000
-n_latent1 = 2
+n_latent1 = 3
 n_latent2 = 3
 n_epochs = 100
 noise_stddev = 0.1
@@ -83,9 +86,10 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    def loss_f(args):
       y_true, y_pred = args
       l2 = K.mean(K.square(y_true - y_pred))
-      return l2
-      #return l2 + 0.01 * K.exp(-K.square(K.mean(y1(x) - y2(x))))
+      #return l2
+      #return l2 + 0.1 * K.exp(-K.square(K.mean(y1(x) - y2(x))))
       #return l2 + 10*K.square(K.mean(y1(x) * y2(x))) / ( K.mean(K.square(y1(x))) * K.mean(K.square(y2(x))) )
+      return l2 + .1*K.square(K.mean( (y1(x)-K.mean(y1(x))) * (y2(x)-K.mean(y2(x))) )) / ( K.mean(K.square(y1(x)-K.mean(y1(x)))) * K.mean(K.square(y2(x)-K.mean(y2(x)))) )
       #return l2 / (1. + K.tanh(K.mean(K.square(y1(x) - y2(x)))))
       #return l2 - 0.01 * K.tanh(0.01*K.mean(K.square(y1(x) - y2(x))))
       #return l2 / (100. + K.mean(K.square(y1(x) - y2(x))))
@@ -178,7 +182,7 @@ fm_hyper = lambda n: np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)) + 2*
 lorenz = lambda n: TS.lorenz(n, [1,0,0])[::1]
 lorenz2 = lambda n: TS.lorenz(n+15000, [0,-1,0])[15000:]
 sig1 = lorenz
-sig2 = sin2
+sig2 = fm_strong
 make_2freq = lambda n: sig1(n) + sig2(n)
 
 frames, out_frames, *_ = TS.make_training_set(make_2freq, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
@@ -187,21 +191,21 @@ frames, out_frames, *_ = TS.make_training_set(make_2freq, frame_size=frame_size,
 
 
 trainer, model, model2, mode1, mode2, encoder, dzdx = make_model(frames[0])
-loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) + 0.001*K.sum(dzdx*dzdx)
-model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
-model.summary()
+loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
+#model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
+#model.summary()
 #model2.compile(optimizer=keras.optimizers.Adam(), loss='mse')
 #model2.summary()
-#trainer.compile(optimizer=keras.optimizers.Adam(), loss=lambda y_true, y_pred:y_pred)
-#trainer.summary()
+trainer.compile(optimizer=keras.optimizers.Adam(), loss=lambda y_true, y_pred:y_pred)
+trainer.summary()
 
 loss_recorder = tools.LossRecorder()
 #tools.train(model2, frames, out_frames, 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 128, 15*n_epochs, loss_recorder)
-tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
+#tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
 #tools.train(model, frames, frames, 128, 15*n_epochs, loss_recorder)
-#tools.train(trainer, frames, frames, 32, n_epochs, loss_recorder)
+tools.train(trainer, frames, frames, 32, n_epochs, loss_recorder)
 
 
 
