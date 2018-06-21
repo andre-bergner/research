@@ -1,8 +1,14 @@
+# TODO
+# • separating two lorenz with current model is hard even using cheater
+#   and unstable when training model afterwards
+#   → try out more complex model
+
 # TRY
 # • minimize cross-channel predictivity, i.e. it should be impossible for the model to predict
 #   the x2 out z1 and vise versa
 #   • perhaps formulate in terms of ShAE, i.e. it's not possible to build a sub-ShAE across
 #     the channels
+#   • adversarial style training.
 # • simplify (remove layers) from decoder
 # • simplify parallel AE
 # • multi-pass ShAE
@@ -33,8 +39,8 @@ from timeshift_autoencoder import predictors as P
 frame_size = 80
 shift = 8
 n_pairs = 5000
-n_latent1 = 3
-n_latent2 = 3
+n_latent1 = 4
+n_latent2 = 4
 n_epochs = 100
 noise_stddev = 0.1
 
@@ -90,8 +96,12 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    # • SAE with with separation in z-space
 
    # y = eta() >> encoder >> eta() >> decoder
-   y1 = eta() >> encoder >> eta() >> decoder1
-   y2 = eta() >> encoder >> eta() >> decoder2
+   #y1 = eta() >> encoder >> eta() >> decoder1
+   #y2 = eta() >> encoder >> eta() >> decoder2
+   y1 = encoder >> decoder1
+   y2 = encoder >> decoder2
+   z1 = encoder >> slice1
+   z2 = encoder >> slice2
    y = lambda x: L.Add()([y1(x), y2(x)])
 
    dzdx = XL.jacobian(encoder(x),x)
@@ -101,10 +111,14 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    def loss_f(args):
       y_true, y_pred = args
       l2 = K.mean(K.square(y_true - y_pred))
-      return l2
+      #return l2
       #return l2 + 0.1 * K.exp(-K.square(K.mean(y1(x) - y2(x))))
       #return l2 + 10*K.square(K.mean(y1(x) * y2(x))) / ( K.mean(K.square(y1(x))) * K.mean(K.square(y2(x))) )
-      #return l2 + .1*K.square(K.mean( (y1(x)-K.mean(y1(x))) * (y2(x)-K.mean(y2(x))) )) / ( K.mean(K.square(y1(x)-K.mean(y1(x)))) * K.mean(K.square(y2(x)-K.mean(y2(x)))) )
+      #return l2 + .1 * K.square(K.mean( (y1(x)-K.mean(y1(x))) * (y2(x)-K.mean(y2(x))) )) \
+      #               / ( K.mean(K.square(y1(x)-K.mean(y1(x)))) * K.mean(K.square(y2(x)-K.mean(y2(x)))) )
+      Y1 = z1(x) - K.mean(z1(x))
+      Y2 = z2(x) - K.mean(z2(x))
+      return l2 + 1 * K.square( K.mean(Y1 * Y2) / (K.mean(K.square(Y1)) * K.mean(K.square(Y2))) )
       #return l2 / (1. + K.tanh(K.mean(K.square(y1(x) - y2(x)))))
       #return l2 - 0.01 * K.tanh(0.01*K.mean(K.square(y1(x) - y2(x))))
       #return l2 / (100. + K.mean(K.square(y1(x) - y2(x))))
@@ -216,18 +230,22 @@ frames2, *_ = TS.make_training_set(sig2, frame_size=frame_size, n_pairs=n_pairs,
 
 
 
-trainer, model, model2, mode1, mode2, encoder, dzdx = make_model2(frames[0])
+trainer, model, model2, mode1, mode2, encoder, dzdx = make_model(frames[0])
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
-model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
-model.summary()
-x = F.input_like(frames[0])
-cheater = M.Model([x], [mode1(x), mode2(x)])
-cheater.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
+
+#model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
+#model.summary()
+
+#x = F.input_like(frames[0])
+#cheater = M.Model([x], [mode1(x), mode2(x)])
+#cheater.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
+
 #model2.compile(optimizer=keras.optimizers.Adam(), loss='mse')
 #model2.summary()
-#trainer.compile(optimizer=keras.optimizers.Adam(), loss=lambda y_true, y_pred:y_pred)
+
+trainer.compile(optimizer=keras.optimizers.Adam(), loss=lambda y_true, y_pred:y_pred)
 #trainer.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=lambda y_true, y_pred:y_pred)
-#trainer.summary()
+trainer.summary()
 
 #mode1.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 #mode1.summary()
@@ -235,14 +253,13 @@ cheater.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 
 
 loss_recorder = tools.LossRecorder()
-#tools.train(model2, frames, out_frames, 32, n_epochs, loss_recorder)
+#tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
+
 #tools.train(model, frames, out_frames[0], 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 128, 15*n_epochs, loss_recorder)
-tools.train(cheater, frames, [frames1, frames2], 32, n_epochs, loss_recorder)
-#tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
-#tools.train(model, frames, frames, 128, 15*n_epochs, loss_recorder)
-#tools.train(trainer, frames, frames, 32, n_epochs, loss_recorder)
-#tools.train(mode1, frames, frames, 32, n_epochs, loss_recorder)
+#tools.train(cheater, frames, [frames1, frames2], 32, n_epochs, loss_recorder)
+#tools.train(model2, frames, out_frames, 32, n_epochs, loss_recorder)
+tools.train(trainer, frames, frames, 32, n_epochs, loss_recorder)
 
 
 
