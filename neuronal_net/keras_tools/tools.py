@@ -103,6 +103,14 @@ def observe_all_layers(model):
       [l for ll in layer_outputs for l in ll]
    )
 
+def visulize_graph(model, filename):
+   if keras.backend.backend() == 'theano':
+      from theano.printing import pydotprint
+      pydotprint(model.outputs[0], filename)
+      #import theano.d3viz as d3v
+      #d3v.d3viz(model.outputs[0], filename)
+
+
 
 class CascadeFactory:
 
