@@ -11,31 +11,49 @@ from keras_tools import functional_layers as F
 from keras_tools import tools
 
 
+class VariationalEncoder(L.Layer):
+
+   def __init__(self, latent_size, data_size, *args, **kwargs):
+      super(VariationalEncoder, self).__init__(*args, **kwargs)
+      self.latent_size = latent_size
+      self.data_size = data_size
+
+   def compute_output_shape(self, input_shape):
+      return (input_shape[0], self.latent_size)
+
+   def call(self, inputs, training=None):
+
+      def reparameterization(args):
+         mu, log_sigma = args
+         epsilon = K.random_normal(shape=K.shape(mu))
+         sigma = K.exp(0.5 * log_sigma)
+         return K.in_train_phase(mu + sigma * epsilon, mu + sigma, training=training)
+         #return mu + sigma * epsilon
+
+      h = inputs
+      mu = F.dense([self.latent_size], name='mu')(h)
+      log_sigma = F.dense([self.latent_size], name='log_sigma')(h)
+      z = L.Lambda(reparameterization, output_shape=(self.latent_size,), name='z')([mu, log_sigma])
+
+      kl_div = -.5 * K.mean(1 + log_sigma - K.square(mu) - K.exp(log_sigma))
+      self.add_loss(kl_div * self.latent_size / self.data_size)
+
+      self.mu = mu
+      self.log_sigma = log_sigma
+
+      return z
+
+
+
+
 width, height = 28, 28
 x_dim = width * height
 z_dim = 20
 act = lambda a: L.Activation(a)
 
 x = L.Input([width, height], name='x')
-encoder = F.flatten() >> F.dense([160]) >> act('relu')
-ex = encoder(x)
-
-
-def sampling(args):
-    z_mu, z_log_sigma = args
-    batch = K.shape(z_mu)[0]
-    dim = K.int_shape(z_mu)[1]
-    epsilon = K.random_normal(shape=(batch, dim))
-    return z_mu + K.exp(0.5 * z_log_sigma) * epsilon
-
-z_mu = F.dense([z_dim], name='z_mu')(ex)
-z_log_sigma = F.dense([z_dim], name='z_log_sigma')(ex)
-batch_size = K.shape(z_mu)[0]
-epsilon = K.random_normal(shape=(batch_size, z_dim))
-#z = z_mu + K.exp(0.5 * z_log_sigma) * epsilon
-z = L.Lambda(sampling, output_shape=(z_dim,), name='z')([z_mu, z_log_sigma])
-#exp_s = L.Lambda(lambda x: K.exp(0.5 * x), output_shape=(z_dim,))(z_log_sigma)
-#z = L.Multiply([ exps(z_log_sigma), ])
+encoder = F.flatten() >> F.dense([160]) >> act('relu') >> VariationalEncoder(z_dim, x_dim)
+z = encoder(x)
 
 decoder = (  F.dense([160]) >> act('relu')
           >> F.dense([width, height]) >> act('sigmoid')
@@ -43,13 +61,7 @@ decoder = (  F.dense([160]) >> act('relu')
 
 model = M.Model([x], [decoder(z)])
 
-def vae_loss(y_true, y_pred):
-   #reconst_loss = x_dim * keras.losses.mean_squared_error(y_true, y_pred)
-   reconst_loss = K.mean(K.square(y_true-y_pred), axis=-1)
-   kl_div = -.5 * K.mean(1 + z_log_sigma - K.square(z_mu) - K.exp(z_log_sigma))
-   return x_dim*reconst_loss + z_dim*kl_div
-
-model.compile(optimizer=keras.optimizers.Adam(), loss=vae_loss)
+model.compile(optimizer=keras.optimizers.Adam(), loss='mse')
 
 # plot_model(model, to_file='vae.png', show_shapes=True)
 
