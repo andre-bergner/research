@@ -41,13 +41,14 @@ class Slice(Layer, metaclass=MetaSlice):
         ND tensor with shape `(batch, dim1, ..., dimN, features) ^ slices`
     """
 
-    def __init__(self, slices=None, **kwargs):
+    def __init__(self, slices=None, activity_regularizer=None, **kwargs):
         super(Slice, self).__init__(**kwargs)
         # self.slice = conv_utils.normalize_tuple(slice, 2, 'cropping')
         assert type(slices) == tuple
         assert all(type(s) == slice for s in slices)
         # TODO elements might be int --> reduces ndim  -->  forbid or allow ???
         self.slices = slices
+        self.activity_regularizer = keras.regularizers.get(activity_regularizer)
         self.input_spec = InputSpec(ndim=len(slices))
 
     def compute_output_shape(self, input_shape):
@@ -77,7 +78,9 @@ class Slice(Layer, metaclass=MetaSlice):
         return inputs[self.slices]
 
     def get_config(self):
-        config = {'slices': self.slices}
+        config = {  'slices': self.slices
+                 ,  'activity_regularizer': keras.regularizers.serialize(self.activity_regularizer),
+                 }
         base_config = super(Slice, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
