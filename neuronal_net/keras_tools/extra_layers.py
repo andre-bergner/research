@@ -86,6 +86,40 @@ class Slice(Layer, metaclass=MetaSlice):
 
 
 
+class VariationalEncoder(L.Layer):
+
+   def __init__(self, latent_size, data_size, *args, **kwargs):
+      super(VariationalEncoder, self).__init__(*args, **kwargs)
+      self.latent_size = latent_size
+      self.data_size = data_size
+
+   def compute_output_shape(self, input_shape):
+      return (input_shape[0], self.latent_size)
+
+   def call(self, inputs, training=None):
+
+      def reparameterization(args):
+         mu, log_sigma = args
+         epsilon = K.random_normal(shape=K.shape(mu))
+         sigma = K.exp(0.5 * log_sigma)
+         return K.in_train_phase(mu + sigma * epsilon, mu + sigma, training=training)
+         #return mu + sigma * epsilon
+
+      h = inputs
+      mu = L.Dense(self.latent_size, name='mu')(h)
+      log_sigma = L.Dense(self.latent_size, name='log_sigma')(h)
+      z = L.Lambda(reparameterization, output_shape=(self.latent_size,), name='z')([mu, log_sigma])
+
+      kl_div = -.5 * K.mean(1 + log_sigma - K.square(mu) - K.exp(log_sigma))
+      self.add_loss(kl_div * self.latent_size / self.data_size)
+
+      self.mu = mu
+      self.log_sigma = log_sigma
+
+      return z
+
+
+
 
 if K.backend() == 'theano':
 
