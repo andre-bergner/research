@@ -88,10 +88,11 @@ class Slice(Layer, metaclass=MetaSlice):
 
 class VariationalEncoder(L.Layer):
 
-   def __init__(self, latent_size, data_size, *args, **kwargs):
+   def __init__(self, latent_size, data_size, beta=1, *args, **kwargs):
       super(VariationalEncoder, self).__init__(*args, **kwargs)
       self.latent_size = latent_size
       self.data_size = data_size
+      self.beta = beta
 
    def compute_output_shape(self, input_shape):
       return (input_shape[0], self.latent_size)
@@ -111,7 +112,7 @@ class VariationalEncoder(L.Layer):
       z = L.Lambda(reparameterization, output_shape=(self.latent_size,), name='z')([mu, log_sigma])
 
       kl_div = -.5 * K.mean(1 + log_sigma - K.square(mu) - K.exp(log_sigma))
-      self.add_loss(kl_div * self.latent_size / self.data_size)
+      self.add_loss(kl_div * self.beta * self.latent_size / self.data_size)
 
       self.mu = mu
       self.log_sigma = log_sigma
