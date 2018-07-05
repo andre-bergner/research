@@ -82,16 +82,14 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    slice1 = XL.Slice[:,0:latent_sizes[0]]
    #slice1.activity_regularizer = lambda x: 1. / (10. + K.mean(K.square((x))))
    #slice1.activity_regularizer = lambda x: K.exp(-K.mean(K.square((x))))
-   decoder1 = (  F.fun._ >> slice1
-              >> dense([sig_len//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+   decoder1 = (  dense([sig_len//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
               >> dense([sig_len//2]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
               >> dense([sig_len]) 
               )
 
    slice2 = XL.Slice[:,latent_sizes[0]:]
    #slice2.activity_regularizer = lambda x: 1. / (0.001 + K.mean(K.square((x))))
-   decoder2 = (  F.fun._ >> slice2
-              >> dense([sig_len//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+   decoder2 = (  dense([sig_len//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
               >> dense([sig_len//2]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
               >> dense([sig_len]) 
               )
@@ -103,13 +101,15 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    # y = eta() >> encoder >> eta() >> decoder
    #y1 = eta() >> encoder >> eta() >> decoder1
    #y2 = eta() >> encoder >> eta() >> decoder2
-   y1 = encoder >> decoder1
-   y2 = encoder >> decoder2
-   z1 = encoder >> slice1
-   z2 = encoder >> slice2
-   y = lambda x: L.Add()([y1(x), y2(x)])
+   ex = encoder(x)
+   z1 = slice1(ex)
+   z2 = slice2(ex)
+   y1 = decoder1(z1)
+   y2 = decoder2(z2)
+   #y = lambda x: L.Add()([y1(x), y2(x)])
+   y = L.Add()([y1, y2])
 
-   dzdx = XL.jacobian(encoder(x),x)
+   dzdx = XL.jacobian(ex,x)
 
    #distangle_pressure = lambda -keras.losses.mean_squared_error()
    #reconstruction_loss = keras.losses.mean_squared_error
@@ -124,8 +124,8 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
       #               / ( K.mean(K.square(y1(x)-K.mean(y1(x)))) * K.mean(K.square(y2(x)-K.mean(y2(x)))) )
       #Y1 = z1(x) - K.mean(z1(x))
       #Y2 = z2(x) - K.mean(z2(x))
-      Y1 = y1(x) - K.mean(y1(x))
-      Y2 = y2(x) - K.mean(y2(x))
+      Y1 = y1 - K.mean(y1)
+      Y2 = y2 - K.mean(y2)
       return l2 + 0.1 * K.square( K.mean(Y1 * Y2) / (K.mean(K.square(Y1)) * K.mean(K.square(Y2))) )
       #return l2 / (1. + K.tanh(K.mean(K.square(y1(x) - y2(x)))))
       #return l2 - 0.01 * K.tanh(0.01*K.mean(K.square(y1(x) - y2(x))))
@@ -135,11 +135,11 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    loss = L.Lambda(loss_f, output_shape=(1,))
 
    return (
-      M.Model([x], [loss([x, y(x)])]),
-      M.Model([x], [y(x)]),
-      M.Model([x], [y(x), y(y(x))]),
-      M.Model([x], [y1(x)]),
-      M.Model([x], [y2(x)]),
+      M.Model([x], [loss([x, y])]),
+      M.Model([x], [y]),
+      None,#M.Model([x], [y, y(y)]),
+      M.Model([x], [y1]),
+      M.Model([x], [y2]),
       M.Model([x], [encoder(x)]),
       dzdx
    )
