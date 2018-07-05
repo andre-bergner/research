@@ -1,14 +1,25 @@
+import numpy as np
+
+import keras
+import keras.models as M
+import keras.layers as L
+import keras.backend as K
+
 import sys
 sys.path.append('../')
 
-from keras_tools import extra_layers as XL
+from keras_tools import tools
 from keras_tools import functional as fun
+from keras_tools import functional_layers as F
+from keras_tools import extra_layers as XL
 from keras_tools import test_signals as TS
+
+from timeshift_autoencoder import predictors as P
+
 
 import keras.layers as L
 from keras.layers import Input, Dense, Reshape, Activation, Flatten, BatchNormalization
 from keras.models import Sequential, Model
-from keras.optimizers import Adam
 from keras import losses
 import keras.backend as K
 
@@ -26,18 +37,21 @@ class AdversarialAutoencoder():
    def __init__(self):
       self.sig_len = 128
       self.img_shape = [self.sig_len]
-      self.z_size = 6
+      latent_sizes = [3, 3]
+      self.z_size = sum(latent_sizes)
 
-      optimizer = Adam(0.0002, 0.5)
+      optimizer = keras.optimizers.Adam(0.0002, 0.5)
 
-      self.discriminator = self.build_discriminator()
+      self.discriminator = self.make_discriminator()
       self.discriminator.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
       self.discriminator.summary()
 
-      self.encoder = self.build_encoder()
+      self.encoder, self.decoder, self.dec1, self.dec2 = self.make_autoencoder(self.sig_len, latent_sizes)
+
+      #self.encoder = self.make_encoder()
       self.encoder.summary()
 
-      self.decoder, self.dec1, self.dec2 = self.build_decoder()
+      #self.decoder, self.dec1, self.dec2 = self.make_decoder()
       self.decoder.compile(loss=['mse'], optimizer=optimizer)
       self.decoder.summary()
 
@@ -54,21 +68,55 @@ class AdversarialAutoencoder():
          optimizer=optimizer)
 
 
-   def build_encoder(self):
+   @staticmethod
+   def make_autoencoder(x_len, latent_sizes=[3, 3]):
 
-      encoder = Sequential()
-      encoder.add(Dense(64, input_shape=self.img_shape))
-      encoder.add(Activation(activation))
-      encoder.add(BatchNormalization(momentum=0.8))
-      encoder.add(Dense(32))
-      encoder.add(Activation(activation))
-      encoder.add(BatchNormalization(momentum=0.8))
-      encoder.add(Dense(self.z_size))
+      activation = fun.bind(XL.tanhx, alpha=0.2)
+      act = lambda: L.Activation(activation)
+      noise_stddev = 0.03
+      eta = lambda: F.noise(noise_stddev)
+      latent_size = sum(latent_sizes)
 
-      return encoder
+      encoder = (  F.dense([x_len//2])  >> act()                   # >> dropout(0.2)
+                >> F.dense([x_len//4])  >> act() #>> batch_norm() # >> dropout(0.2)
+                >> F.dense([latent_size]) >> act() #>> batch_norm() # >> dropout(0.2)
+                )
 
 
-   def build_decoder(self):
+      slice1 = XL.Slice[:,0:latent_sizes[0]]
+      decoder1 = (  fun._ >> slice1
+                 >> F.dense([x_len//4]) >> act() #>> batch_norm() # >> dropout(0.2)
+                 >> F.dense([x_len//2]) >> act() #>> batch_norm() # >> dropout(0.2)
+                 >> F.dense([x_len]) 
+                 )
+
+      slice2 = XL.Slice[:,latent_sizes[0]:]
+      decoder2 = (  fun._ >> slice2
+                 >> F.dense([x_len//4]) >> act() #>> batch_norm() # >> dropout(0.2)
+                 >> F.dense([x_len//2]) >> act() #>> batch_norm() # >> dropout(0.2)
+                 >> F.dense([x_len]) 
+                 )
+
+      x = L.Input([x_len])
+      z = L.Input([latent_size])
+      y1 = eta() >> encoder >> eta() >> decoder1
+      y2 = eta() >> encoder >> eta() >> decoder2
+
+      y = lambda x: L.Add()([y1(x), y2(x)])
+
+      return (
+         #M.Model([x], [y(x)]),
+         M.Model([x], [(eta() >> encoder)(x)]),
+         M.Model([z], [L.Add()([(eta() >> decoder1)(z), (eta() >> decoder2)(z)])]),
+         M.Model([z], [decoder1(z)]),
+         M.Model([z], [decoder2(z)]),
+         #M.Model([x], [y1(x)]),
+         #M.Model([x], [y2(x)]),
+      )
+
+   """
+   @staticmethod
+   def make_decoder(self):
 
       x = Input(shape=[self.z_size])
       y = XL.Slice[:,0:3](x)
@@ -92,9 +140,9 @@ class AdversarialAutoencoder():
       y2 = y
 
       return Model([x], [L.Add()([y1, y2])]), Model([x], [y1]), Model([x], [y2])
+   """
 
-
-   def build_discriminator(self):
+   def make_discriminator(self):
 
       discriminator = Sequential()
       discriminator.add(Dense(64, input_dim=self.z_size))
@@ -123,15 +171,15 @@ class AdversarialAutoencoder():
          imgs = random_batch(half_batch)
 
          latent_fake = self.encoder.predict(imgs)
-         latent_real = np.random.normal(size=(half_batch, self.z_size))
+         #latent_real = np.random.normal(size=(half_batch, self.z_size))
          latent_real = np.random.multivariate_normal(
             [0, 0, 0, 0, 0, 0],
-            [ [1, 1, 1, 0, 0, 0]
-            , [1, 1, 1, 0, 0, 0]
-            , [1, 1, 1, 0, 0, 0]
-            , [0, 0, 0, 1, 1, 1]
-            , [0, 0, 0, 1, 1, 1]
-            , [0, 0, 0, 1, 1, 1]
+            [ [.5, .5, .5, 0, 0, 0]
+            , [.5, .5, .5, 0, 0, 0]
+            , [.5, .5, .5, 0, 0, 0]
+            , [0, 0, 0, .5, .5, .5]
+            , [0, 0, 0, .5, .5, .5]
+            , [0, 0, 0, .5, .5, .5]
             ],
             size=(half_batch)
          )
@@ -158,7 +206,7 @@ class AdversarialAutoencoder():
 
 
 
-def build_prediction(model, frames, num=2000):
+def make_prediction(model, frames, num=2000):
    frame_size = len(frames[0])
    pred_frames = model.predict(frames[:num])
    times = [np.arange(n, n+frame_size) for n in np.arange(len(pred_frames))]
@@ -169,6 +217,21 @@ def build_prediction(model, frames, num=2000):
    return avg_frames
 
 
+def plot_joint_dist_impl(code, n_latent):
+   fig, axs = plt.subplots(n_latent, n_latent, figsize=(8, 8))
+   for ax_rows, c1 in zip(axs, code.T):
+      for ax, c2 in zip(ax_rows, code.T):
+         ax.plot( c2, c1, '.k', markersize=0.5)
+         ax.axis('off')
+
+def plot_joint_dist(encoder, frames, n_latent):
+   code = encoder.predict(frames)
+   fig, axs = plt.subplots(n_latent, n_latent, figsize=(8, 8))
+   for ax_rows, c1 in zip(axs, code.T):
+      for ax, c2 in zip(ax_rows, code.T):
+         ax.plot( c2, c1, '.k', markersize=0.5)
+         ax.axis('off')
+
 
 if __name__ == '__main__':
 
@@ -176,10 +239,10 @@ if __name__ == '__main__':
     fm_strong = lambda n: 0.5*np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)))
     sig_gen = lambda n: lorenz(n) + fm_strong(n)
 
-    frames, *_ = TS.make_training_set(sig_gen, frame_size=128, n_pairs=4000, shift=1)
+    frames, *_ = TS.make_training_set(sig_gen, frame_size=128, n_pairs=6000, shift=1)
 
     aae = AdversarialAutoencoder()
-    aae.train(frames, epochs=1000, batch_size=32)
+    aae.train(frames, epochs=10000, batch_size=32)
 
     x = Input(shape=aae.img_shape)
     ae = Model([x], [aae.decoder(aae.encoder(x))])
@@ -193,5 +256,5 @@ if __name__ == '__main__':
     TS.plot3d(*code.T[:3], 'k')
 
     plt.figure()
-    plt.plot(build_prediction(ae1, frames, 2000))
-    plt.plot(build_prediction(ae2, frames, 2000))
+    plt.plot(make_prediction(ae1, frames, 2000))
+    plt.plot(make_prediction(ae2, frames, 2000))
