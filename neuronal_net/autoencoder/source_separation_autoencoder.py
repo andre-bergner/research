@@ -76,7 +76,8 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
 
    encoder = (  dense([sig_len//2])  >> act()                   # >> F.dropout(0.2)
              >> dense([sig_len//4])  >> act() #>> F.batch_norm() # >> F.dropout(0.2)
-             >> dense([latent_size]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+             #>> dense([latent_size]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+             >> XL.VariationalEncoder(latent_size, sig_len, beta=0.1)
              )
 
    slice1 = XL.Slice[:,0:latent_sizes[0]]
@@ -109,7 +110,7 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    #y = lambda x: L.Add()([y1(x), y2(x)])
    y = L.Add()([y1, y2])
 
-   dzdx = XL.jacobian(ex,x)
+   #dzdx = XL.jacobian(ex,x)
 
    #distangle_pressure = lambda -keras.losses.mean_squared_error()
    #reconstruction_loss = keras.losses.mean_squared_error
@@ -141,7 +142,7 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
       M.Model([x], [y1]),
       M.Model([x], [y2]),
       M.Model([x], [encoder(x)]),
-      dzdx
+      None#dzdx
    )
 
 
@@ -160,7 +161,8 @@ def make_model2(example_frame, latent_sizes=[n_latent1, n_latent2]):
 
    encoder1 = (  F. dense([sig_len//2])  >> act()                   # >> F.dropout(0.2)
               >> F. dense([sig_len//4])  >> act() >> F.batch_norm() # >> F.dropout(0.2)
-              >> F. dense([latent_sizes[0]]) >> act() >> F.batch_norm() # >> F.dropout(0.2)
+              #>> F. dense([latent_sizes[0]]) >> act() >> F.batch_norm() # >> F.dropout(0.2)
+              >> XL.VariationalEncoder(latent_sizes[0], sig_len, beta=0.002)
               )
 
    decoder1 = (  F.dense([sig_len//4]) >> act() >> F.batch_norm() # >> F.dropout(0.2)
@@ -170,7 +172,8 @@ def make_model2(example_frame, latent_sizes=[n_latent1, n_latent2]):
 
    encoder2 = (  F. dense([sig_len//2])  >> act()                   # >> F.dropout(0.2)
               >> F. dense([sig_len//4])  >> act() >> F.batch_norm() # >> F.dropout(0.2)
-              >> F. dense([latent_sizes[1]]) >> act() >> F.batch_norm() # >> F.dropout(0.2)
+              #>> F. dense([latent_sizes[1]]) >> act() >> F.batch_norm() # >> F.dropout(0.2)
+              >> XL.VariationalEncoder(latent_sizes[1], sig_len, beta=0.002)
               )
 
    decoder2 = (  F.dense([sig_len//4]) >> act() >> F.batch_norm() # >> F.dropout(0.2)
@@ -242,7 +245,8 @@ frames2, *_ = TS.make_training_set(sig2, frame_size=frame_size, n_pairs=n_pairs,
 
 
 
-trainer, model, model2, mode1, mode2, encoder, dzdx = make_model(frames[0])
+#trainer, model, model2, mode1, mode2, encoder, dzdx = make_model(frames[0])
+_, model, model2, mode1, mode2, encoder, encoder2 = make_model2(frames[0])
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
 
 model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
@@ -265,10 +269,10 @@ cheater.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 
 loss_recorder = tools.LossRecorder()
 
-#tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
+tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 128, 15*n_epochs, loss_recorder)
-tools.train(cheater, frames, [frames1, frames2], 32, n_epochs, loss_recorder)
+#tools.train(cheater, frames, [frames1, frames2], 32, n_epochs, loss_recorder)
 #tools.train(model2, frames, out_frames, 32, n_epochs, loss_recorder)
 #tools.train(trainer, frames, frames, 32, n_epochs, loss_recorder)
 
@@ -324,12 +328,22 @@ def plot_joint_dist():
          ax.plot( c2, c1, '.k', markersize=0.5)
          ax.axis('off')
 
+def plot_joint_dist2():
+   code1 = encoder.predict(frames)
+   code2 = encoder2.predict(frames)
+   code = np.concatenate([code1.T,code2.T]).T
+   fig, axs = plt.subplots(n_latent1+n_latent2, n_latent1+n_latent2, figsize=(8, 8))
+   for ax_rows, c1 in zip(axs, code.T):
+      for ax, c2 in zip(ax_rows, code.T):
+         ax.plot( c2, c1, '.k', markersize=0.5)
+         ax.axis('off')
+
 
 
 code = encoder.predict(frames)
 
 plot_modes2()
-plot_joint_dist()
+plot_joint_dist2()
 
 # plot(P.predict_signal(model, frames[0], shift, 5000), 'k')
 # plot(make_2freq(1000))
