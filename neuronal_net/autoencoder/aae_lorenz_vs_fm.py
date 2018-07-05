@@ -174,12 +174,12 @@ class AdversarialAutoencoder():
          #latent_real = np.random.normal(size=(half_batch, self.z_size))
          latent_real = np.random.multivariate_normal(
             [0, 0, 0, 0, 0, 0],
-            [ [.5, .5, .5, 0, 0, 0]
-            , [.5, .5, .5, 0, 0, 0]
-            , [.5, .5, .5, 0, 0, 0]
-            , [0, 0, 0, .5, .5, .5]
-            , [0, 0, 0, .5, .5, .5]
-            , [0, 0, 0, .5, .5, .5]
+            [ [1., .2, .2, 0., 0., 0.]
+            , [.2, 1., .2, 0., 0., 0.]
+            , [.2, .2, 1., 0., 0., 0.]
+            , [0., 0., 0., 1., .2, .2]
+            , [0., 0., 0., .2, 1., .2]
+            , [0., 0., 0., .2, .2, 1.]
             ],
             size=(half_batch)
          )
@@ -258,3 +258,14 @@ if __name__ == '__main__':
     plt.figure()
     plt.plot(make_prediction(ae1, frames, 2000))
     plt.plot(make_prediction(ae2, frames, 2000))
+
+
+    def plot_joint_dist():
+       code = aae.encoder.predict(frames)
+       fig, axs = plt.subplots(aae.z_size, aae.z_size, figsize=(8, 8))
+       for ax_rows, c1 in zip(axs, code.T):
+          for ax, c2 in zip(ax_rows, code.T):
+             ax.plot( c2, c1, '.k', markersize=0.5)
+             ax.axis('off')
+
+    plot_joint_dist()
