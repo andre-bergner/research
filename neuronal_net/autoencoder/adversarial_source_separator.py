@@ -168,7 +168,8 @@ class AdversarialSourceSeparator():
 
       loss = L.Lambda(loss_f, output_shape=(1,))
 
-      self.trainer = M.Model([x], [loss([x, y(x)])])
+      #self.trainer = M.Model([x], [loss([x, y(x)])])
+      self.trainer = M.Model([x], [y(x), static_transfer_21(z2(x)), static_transfer_12(z1(x)) ])
 
 
       # models = model_factory(self.frames[0], latent_sizes)
@@ -176,7 +177,8 @@ class AdversarialSourceSeparator():
 
       #self.model.compile(optimizer=optimizer, loss='mse')
       #self.model.summary()
-      self.trainer.compile(optimizer=optimizer, loss=lambda y_true, y_pred:y_pred)
+      #self.trainer.compile(optimizer=optimizer, loss=lambda y_true, y_pred:y_pred)
+      self.trainer.compile(optimizer=optimizer, loss='mse')
       self.trainer.summary()
 
 
@@ -211,18 +213,22 @@ class AdversarialSourceSeparator():
 
       #tools.train(self.model, self.frames, self.frames, batch_size, self.n_epochs, self.loss_recorder)
 
-      def train_separator():
+      def rnd_batch():
          idx = np.random.randint(0, self.frames.shape[0], batch_size)
-         batch = self.frames[idx]
-         #return self.model.train_on_batch(batch, batch)
+         return self.frames[idx]
+
+      def train_separator():
+         # the adversary trains the network to target the correlator against unstructured data (noise).""
+         batch = rnd_batch()
+         noise1 = np.random.normal(scale=0.1, size=(batch_size, self.frame_size))
+         noise2 = np.random.normal(scale=0.1, size=(batch_size, self.frame_size))
          w0 = self.transfer.get_weights()[1].copy()
-         loss = self.trainer.train_on_batch(batch, batch)
+         loss = self.trainer.train_on_batch(batch, [batch, noise1, noise2])
          assert( np.array_equal(w0, self.transfer.get_weights()[1]) )
          return loss
 
       def train_correlator():
-         idx = np.random.randint(0, self.frames.shape[0], batch_size)
-         batch = self.frames[idx]
+         batch = rnd_batch()
          z1 = self.z1.predict(batch)
          z2 = self.z2.predict(batch)
          y1 = self.y1.predict(batch)
@@ -231,11 +237,12 @@ class AdversarialSourceSeparator():
 
       for epoch in range(epochs):
          s_loss = train_separator()
+         s_loss = train_separator()
          c_loss = train_correlator()
          #c_loss = train_correlator()
 
          if (epoch % 100 == 0):
-            print('# {:>5} Sep. loss: {:.4f}   Cor. loss: {:.4f}, {:.4f}'.format(epoch, s_loss, c_loss[0], c_loss[1]))
+            print('# {:>5} Sep. loss: ({:.4f}, {:.4f}, {:.4f})   Cor. loss: {:.4f}, {:.4f}'.format(epoch, s_loss[0], s_loss[1], s_loss[2], c_loss[0], c_loss[1]))
 
          # if (epoch+1) % sample_interval == 0:
          #    self.sampler.sample_images(epoch+1)
@@ -290,10 +297,10 @@ if __name__ == '__main__':
    fm_soft1inv = lambda n: np.sin(np.pi*0.1*np.arange(n) - 6*np.sin(0.00599291*np.arange(n)))
    lorenz = lambda n: TS.lorenz(n, [1,0,0])[::1]
    fm_strong = lambda n: 0.5*np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)))
-   sig1 = lambda n: 0.3*lorenz(n)
-   sig2 = lambda n: 0.3*fm_strong(n)
-   #sig1 = lambda n: 0.3*fm_soft1(n)
-   #sig2 = lambda n: 0.3*fm_soft1inv(n)
+   #sig1 = lambda n: 0.3*lorenz(n)
+   #sig2 = lambda n: 0.3*fm_strong(n)
+   sig1 = lambda n: 0.3*fm_soft1(n)
+   sig2 = lambda n: 0.3*fm_soft1inv(n)
    signal = lambda n: sig1(n) + sig2(n)
 
    ass = AdversarialSourceSeparator(signal, [3, 3])
@@ -304,16 +311,14 @@ if __name__ == '__main__':
    plot(build_prediction(ass.y2, ass.frames))
 
 # code = ass.encoder.predict(ass.frames)
-# y1 = ass.transfer.predict(code)
-# code.shape
 # y12 = ass.transfer.predict([code[:,:3], code[:,3:]])
-# plot(y12[0])
-# from pylab import *
-# plot(y12[0])
-# plot(y12[0])
 # plot(y12[0][0])
 # plot(ass.y1.predict(ass.frames[0:1]))
 # ass.y1.predict(ass.frames[0:1]).shape
 # plot(ass.y1.predict(ass.frames[0:1])[0])
 # plot(y12[0][0])
 # plot(ass.y2.predict(ass.frames[0:1])[0])
+
+
+# from keras.utils import plot_model
+# plot_model(model, to_file='model.png')
