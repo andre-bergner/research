@@ -1,4 +1,9 @@
 # TODO
+# • add slow feature regularization on z-subspaces
+# • debug decorrelation approach
+
+
+# TODO
 # • separating two lorenz with current model is hard even using cheater
 #   and unstable when training model afterwards
 #   → try out more complex model
@@ -39,10 +44,10 @@ from timeshift_autoencoder import predictors as P
 frame_size = 80
 shift = 8
 n_pairs = 5000
-n_latent1 = 4
-n_latent2 = 4
-n_epochs = 100
-noise_stddev = 0.1
+n_latent1 = 3
+n_latent2 = 3
+n_epochs = 30
+noise_stddev = 0.01
 
 
 activation = fun.bind(XL.tanhx, alpha=0.2)
@@ -98,8 +103,8 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    # y = eta() >> encoder >> eta() >> decoder
    #y1 = eta() >> encoder >> eta() >> decoder1
    #y2 = eta() >> encoder >> eta() >> decoder2
-   y1 = encoder >> decoder1
-   y2 = encoder >> decoder2
+   #y1 = encoder >> decoder1
+   #y2 = encoder >> decoder2
    z1 = encoder >> slice1
    z2 = encoder >> slice2
    y = lambda x: L.Add()([y1(x), y2(x)])
@@ -112,13 +117,16 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
       y_true, y_pred = args
       l2 = K.mean(K.square(y_true - y_pred))
       #return l2
+      #return l2 + 0.002*K.mean(y1(x) * y2(x))
       #return l2 + 0.1 * K.exp(-K.square(K.mean(y1(x) - y2(x))))
       #return l2 + 10*K.square(K.mean(y1(x) * y2(x))) / ( K.mean(K.square(y1(x))) * K.mean(K.square(y2(x))) )
       #return l2 + .1 * K.square(K.mean( (y1(x)-K.mean(y1(x))) * (y2(x)-K.mean(y2(x))) )) \
       #               / ( K.mean(K.square(y1(x)-K.mean(y1(x)))) * K.mean(K.square(y2(x)-K.mean(y2(x)))) )
-      Y1 = z1(x) - K.mean(z1(x))
-      Y2 = z2(x) - K.mean(z2(x))
-      return l2 + 1 * K.square( K.mean(Y1 * Y2) / (K.mean(K.square(Y1)) * K.mean(K.square(Y2))) )
+      #Y1 = z1(x) - K.mean(z1(x))
+      #Y2 = z2(x) - K.mean(z2(x))
+      Y1 = y1(x) - K.mean(y1(x))
+      Y2 = y2(x) - K.mean(y2(x))
+      return l2 + 0.1 * K.square( K.mean(Y1 * Y2) / (K.mean(K.square(Y1)) * K.mean(K.square(Y2))) )
       #return l2 / (1. + K.tanh(K.mean(K.square(y1(x) - y2(x)))))
       #return l2 - 0.01 * K.tanh(0.01*K.mean(K.square(y1(x) - y2(x))))
       #return l2 / (100. + K.mean(K.square(y1(x) - y2(x))))
@@ -190,9 +198,10 @@ def make_model2(example_frame, latent_sizes=[n_latent1, n_latent2]):
    )
 
 
-def windowed(xs, win_size):
+def windowed(xs, win_size, hop=None):
+   if hop == None: hop = win_size
    if win_size <= len(xs):
-      for n in range(len(xs)-win_size+1):
+      for n in range(0, len(xs)-win_size+1, hop):
          yield xs[n:n+win_size]
 
 def build_prediction(model, num=2000):
@@ -211,7 +220,8 @@ sin2 = lambda n: 0.3*np.sin(np.pi*0.05*np.arange(n))
 tanhsin1 = lambda n: 0.6*np.tanh(4*np.sin(0.05*np.arange(n)))
 fm_soft = lambda n: np.sin(0.07*np.arange(n) + 4*np.sin(0.00599291*np.arange(n)))
 fm_soft1 = lambda n: np.sin(np.pi*0.05*np.arange(n) + 3*np.sin(0.00599291*np.arange(n)))
-fm_soft1 = lambda n: np.sin(np.pi*0.05*np.arange(n) + 6*np.sin(0.00599291*np.arange(n)))
+fm_soft1 = lambda n: np.sin(np.pi*0.1*np.arange(n) + 6*np.sin(0.00599291*np.arange(n)))
+fm_soft1inv = lambda n: np.sin(np.pi*0.1*np.arange(n) - 6*np.sin(0.00599291*np.arange(n)))
 fm_soft2 = lambda n: np.sin(0.15*np.arange(n) + 18*np.sin(0.00599291*np.arange(n)))
 fm_med = lambda n: np.sin(0.1*np.arange(n) + 1*np.sin(0.11*np.arange(n)))
 fm_strong = lambda n: 0.5*np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)))
@@ -220,6 +230,8 @@ lorenz = lambda n: TS.lorenz(n, [1,0,0])[::1]
 lorenz2 = lambda n: TS.lorenz(n+15000, [0,-1,0])[15000:]
 sig1 = lambda n: 0.3*lorenz(n)
 sig2 = lambda n: 0.3*fm_strong(n)
+#sig1 = lambda n: 0.3*fm_soft1(n)
+#sig2 = lambda n: 0.3*fm_soft1inv(n)
 make_2freq = lambda n: sig1(n) + sig2(n)
 
 frames, out_frames, *_ = TS.make_training_set(make_2freq, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
@@ -243,8 +255,7 @@ loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y
 #model2.compile(optimizer=keras.optimizers.Adam(), loss='mse')
 #model2.summary()
 
-trainer.compile(optimizer=keras.optimizers.Adam(), loss=lambda y_true, y_pred:y_pred)
-#trainer.compile(optimizer=keras.optimizers.SGD(lr=0.1), loss=lambda y_true, y_pred:y_pred)
+trainer.compile(optimizer=keras.optimizers.Adam(0.0001,0.5), loss=lambda y_true, y_pred:y_pred)
 trainer.summary()
 
 #mode1.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
@@ -253,8 +264,8 @@ trainer.summary()
 
 
 loss_recorder = tools.LossRecorder()
-#tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
 
+#tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 128, 15*n_epochs, loss_recorder)
 #tools.train(cheater, frames, [frames1, frames2], 32, n_epochs, loss_recorder)
@@ -268,6 +279,16 @@ from pylab import *
 figure()
 semilogy(loss_recorder.losses)
 
+
+def spectrogram(signal, N=256, overlap=0.25):
+   hop = int(overlap * N)
+   def cos_win(x):
+      return x * (0.5 - 0.5*cos(linspace(0,2*pi,len(x))))
+   return np.array([ np.abs(np.fft.fft(cos_win(win))[:N//2]) for win in windowed(signal, N, hop) ])
+
+def spec(signal, N=256, overlap=0.25):
+   s = spectrogram(signal, N, overlap)
+   imshow(log(0.001 + s.T[::-1]), aspect='auto')
 
 def plot_modes(n=0):
    figure()
@@ -303,3 +324,6 @@ plot_modes2()
 # plot(make_2freq(1000))
 
 
+
+def xcorr(m1,m2):
+   return mean((m1-mean(m1))*(m2-mean(m2)))/sqrt(mean((m1-mean(m1))**2)*mean((m2-mean(m2))**2))
