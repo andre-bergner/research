@@ -336,5 +336,36 @@ plot_joint_dist()
 
 
 
-def xcorr(m1,m2):
-   return mean((m1-mean(m1))*(m2-mean(m2)))/sqrt(mean((m1-mean(m1))**2)*mean((m2-mean(m2))**2))
+def xcorr(m1, m2):
+   x1 = m1 - mean(m1)
+   x2 = m2 - mean(m2)
+   return mean( x1 * x2 ) / sqrt( mean(x1**2) * mean(x2**2) )
+
+def nlcorr(m1, m2):
+   x1 = m1 - mean(tanh(m1))
+   x2 = m2 - mean(tanh(m2))
+   return mean( x1 * x2 ) / sqrt( mean(x1**2) * mean(x2**2) )
+
+def xcorr12(m1,m2):
+   x1 = m1 - mean(m1)
+   x2 = m2 - mean(m2)
+   return mean( x1 * x2 * x2 ) / (sqrt(mean(x1**2)) * mean(x2**3)**(1/3))
+
+def xcorr21(m1,m2):
+   x1 = m1 - mean(m1)
+   x2 = m2 - mean(m2)
+   return mean( x1 * x1 * x2 ) / (sqrt(mean(x2**2)) * mean(x1**3)**(1/3))
+
+def xcorr22(m1,m2):
+   x1 = m1 - mean(m1)
+   x2 = m2 - mean(m2)
+   return mean( x1 * x1 * x2 * x2 ) / (sqrt(mean(x2**2)) * mean(x1**2)**(1/2))
+
+def xcorr33(m1,m2):
+   x1 = m1 - mean(m1)
+   x2 = m2 - mean(m2)
+   return mean( x1 * x1 * x1 * x2 * x2 * x2) / sqrt( mean(x2**2) * mean(x1**2) )
+
+def print_corr(X, fxcorr):
+   np.set_printoptions(precision=3, suppress=True)
+   print(np.array([[xcorr12(c1, c2) for c1 in code.T] for c2 in code.T]))
