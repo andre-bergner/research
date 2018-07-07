@@ -69,26 +69,28 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
               >> dense([sig_len]) 
               )
 
-   y1 = eta() >> encoder >> eta() >> decoder1
-   y2 = eta() >> encoder >> eta() >> decoder2
-   #y1 = encoder >> decoder1
-   #y2 = encoder >> decoder2
+   #y1 = eta() >> encoder >> eta() >> decoder1
+   #y2 = eta() >> encoder >> eta() >> decoder2
+   y1 = encoder >> decoder1
+   y2 = encoder >> decoder2
    z1 = encoder >> slice1
    z2 = encoder >> slice2
    y = lambda x: L.Add()([y1(x1), y2(x1)])
 
    def loss_f(args):
       l2 = K.mean(K.square(x1 - y(x1)))
+      loss = l2
 
-      Y1 = y1(x1) - K.mean(y1(x1))
-      Y2 = y2(x1) - K.mean(y2(x1))
-      decorr = K.square( K.mean(Y1 * Y2) / (K.mean(K.square(Y1)) * K.mean(K.square(Y2))) )
+      Y1 = y1(x1) - K.repeat_elements(K.mean(y1(x1), axis=1, keepdims=True), 80, axis=1)
+      Y2 = y2(x1) - K.repeat_elements(K.mean(y2(x1), axis=1, keepdims=True), 80, axis=1)
+      #decorr = K.square( K.mean(Y1 * Y2) / (K.mean(K.square(Y1)) * K.mean(K.square(Y2))) )
+      decorr = K.square(K.batch_dot(Y1, K.transpose(Y2) ))
 
-      #z_smoothness = K.sum( K.square(encoder(vx2) - encoder(vx1)) / ( .0000001 + K.square(encoder(vx2) + encoder(vx1)) ))
-      #z_smoothness = K.square(encoder(vx2) - encoder(vx1))[:,0]# / ( .0000001 + K.square(encoder(vx2) + encoder(vx1)) )[:,0]
-      z1_smoothness = K.mean(K.square(z1(x2) - z1(x1))) / K.mean(K.square(z1(x1) - K.mean(z1(x1))))
-      z2_smoothness = K.mean(K.square(z2(x2) - z2(x1))) / K.mean(K.square(z2(x1) - K.mean(z2(x1))))
-      z_smoothness = z1_smoothness + z2_smoothness
+      z_smoothness = K.sum( K.square(encoder(x2) - encoder(x1)) / ( .0000001 + K.square(encoder(x2) + encoder(x1)) ))
+      #z_smoothness = K.square(encoder(x2) - encoder(x1))[:,0]# / ( .0000001 + K.square(encoder(vx2) + encoder(vx1)) )[:,0]
+      # z1_smoothness = K.mean(K.square(z1(x2) - z1(x1))) / K.mean(K.square(z1(x1) - K.mean(z1(x1))))
+      # z2_smoothness = K.mean(K.square(z2(x2) - z2(x1))) / K.mean(K.square(z2(x1) - K.mean(z2(x1))))
+      # z_smoothness = z1_smoothness# + z2_smoothness
 
 
       #s = K.square(encoder(vx2) + encoder(vx1))
@@ -97,14 +99,30 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
       #y_smoothness = K.mean( K.square(y1(x2) - y1(x1)) )  +  K.mean( K.square(y2(x2) - y2(x1)) )
       #y_smoothness = K.mean( K.square(y1(x1)[1:] - y1(x1)[:-1]) )  +  K.mean( K.square(y2(x1)[1:] - y2(x1)[:-1]) )
 
-      decorr_z = K.square(K.sum( K.sum(K.tanh(2*z1(x1)), axis=1) * K.sum(K.tanh(2*z2(x1)), axis=1), axis=0))
-      #return l2 + 0.3*decorr_z
+      #decorr_z = K.square(K.sum( K.sum(K.tanh(2*z1(x1)), axis=1) * K.sum(K.tanh(2*z2(x1)), axis=1), axis=0))
+      def xcor(a,b):
+         return K.square(K.sum( K.sum(a-K.mean(a,axis=0), axis=1) * K.sum(b-K.mean(b,axis=0), axis=1), axis=0))
+      z1_ = z1(x1)
+      z2_ = z2(x1)
+      decorr_z = xcor(z1_, z2_)
+      decorr_z += xcor(z1_, K.square(z2_))
+      decorr_z += xcor(K.square(z1_), z2_)
+      decorr_z += xcor(K.square(z1_), K.square(z2_))
 
       def cov_z2(z1, z2): return K.sum(K.square(z1)) * K.sum(K.square(z2))
       #return l2 + 0.1 * K.square( K.sum(z1(x1)) * K.sum(z2(x1)) ) + 0.1 * (cov_z2(z1(x1), z2(x1)))
-      return l2 + 0.1 * cov_z2(z1(x1), z2(x1)) + decorr_z #+ 0.1 * z_smoothness#+ cov_z2(z1(x2), z2(x1)) + cov_z2(z1(x1), z2(x2)) + cov_z2(z1(x2), z2(x2)))
+      #return l2 + cov_z2(z1_, z2_) #+ decorr_z #+ 0.1 * z_smoothness#+ cov_z2(z1(x2), z2(x1)) + cov_z2(z1(x1), z2(x2)) + cov_z2(z1(x2), z2(x2)))
       #return l2 + z_smoothness #+ decorr #+ y_smoothness 
-      #return l2 + decorr
+
+      az1 = K.sum(K.square(z1_))
+      az2 = K.sum(K.square(z2_))
+      hollowness = (K.square(az1) + K.square(az2))  - 15*(az1 + az2)
+
+      loss += decorr
+      loss += 0.5*decorr_z
+      loss += 5*hollowness
+      loss += 0.1*z_smoothness
+      return loss
 
    loss = L.Lambda(loss_f, output_shape=(1,))
 
