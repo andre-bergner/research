@@ -89,9 +89,9 @@ sin1 = lambda n: 0.64*np.sin(0.05*np.arange(n))
 sin2 = lambda n: 0.3*np.sin(np.pi*0.05*np.arange(n))
 sig1 = sin1
 sig2 = sin2
-make_2freq = lambda n: sig1(n) + sig2(n)
+signal_gen = lambda n: sig1(n) + sig2(n)
 
-frames, out_frames, *_ = TS.make_training_set(make_2freq, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
+frames = np.array([w for w in windowed(signal_gen(n_pairs+frame_size), frame_size, 1)])
 
 model, mode1, mode2, encoder = make_model(frames[0])
 model.compile(optimizer=keras.optimizers.Adam(), loss='mse')
@@ -131,7 +131,7 @@ def plot_modes2(n=2000):
 
 def plot_orig_vs_reconst(n=2000):
    plot(build_prediction(model, n))
-   plot(make_2freq(n))
+   plot(signal_gen(n))
 
 def plot_joint_dist():
    code = encoder.predict(frames)
