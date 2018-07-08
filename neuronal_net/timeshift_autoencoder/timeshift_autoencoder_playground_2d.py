@@ -89,14 +89,19 @@ def bwimread(filename):
 
 def part_rope_image(k=32):
    global n_pairs, n_nodes, n_latent, n_epochs, make_signal, loss_function
-   n_pairs = 6000
+   n_pairs = 3000
    n_latent = 40
    n_nodes = k
    n_epochs = 20
-   img = bwimread("textures/bgfons.com/rope_texture2074.jpg")
-   #make_signal = lambda n: img[100:260:4,:n].T
+   k0 = 500
+   #img = bwimread("textures/bgfons.com/rope_texture2074.jpg")
+   #n_pairs = 1500
+   #img = bwimread("textures/adult-anger-angry-34667.jpg")
+   #img = bwimread("textures/stockvault-forest-fog142490.jpg")
+   img = bwimread("textures/adult-art-black-and-white-604694.jpg")
+   make_signal = lambda n: img[k0:k0+kk:4,:n].T
    kk = n_nodes*4
-   make_signal = lambda n: np.concatenate([img[100:100+kk:4,:].T, img[100+kk:100+2*kk:4,:].T, img[100+2*kk:100+3*kk:4,:].T])[:n]
+   #make_signal = lambda n: np.concatenate([img[k0:k0+kk:4,:].T, img[k0+kk:k0+2*kk:4,:].T, img[k0+2*kk:k0+3*kk:4,:].T])[:n]
 
    def make_training_set(n_pairs=n_pairs, frame_size=frame_size, shift=shift, n_out=1):
       max_x = img.shape[0] - frame_size - shift*n_out - 1
@@ -125,19 +130,24 @@ def full_rope_image():
    n_nodes = 450
    n_latent = 40
    n_epochs = 60
-   img = bwimread("textures/bgfons.com/rope_texture2074.jpg")
-   make_signal = lambda n: img[0:1800:4,:n].T
+   # n_nodes = 450
+   # img = bwimread("textures/bgfons.com/rope_texture2074.jpg")
+   # make_signal = lambda n: img[0:1800:4,:n].T
+   img = bwimread("textures/adult-art-black-and-white-604694.jpg")
+   make_signal = lambda n: img[0::4,:n].T
+   n_pairs = img.shape[1] - 2*shift - frame_size
+   n_nodes = img.shape[0] // 4
+   n_epochs = 120000 // n_pairs  
    loss_function = lambda y_true, y_pred: \
       0.5*mae(y_true, y_pred) + \
       mae(diff2(y_true), diff2(y_pred)) + \
       mae(diff2(diff2(y_true)), diff2(diff2(y_pred)))
-   return make_signal, loss_function
 
 # n_pairs = 2000
 # n_nodes = 40
 # n_latent = 40
 # n_epochs = 50
-#frame_gen = part_rope_image(32)
+#frame_gen = part_rope_image(64)
 full_rope_image()
 
 
@@ -301,7 +311,7 @@ model, model2, encoder = make_model_2d(in_frames[0], n_latent, simple=False)
 #model, model2, encoder = make_model_2d_conv2latent(in_frames[0])
 #model, model2, encoder = make_model_2d_conv(in_frames[0], n_latent)
 
-model.load_weights('rope_texture2074_full_image___tae.hdf5')
+#model.load_weights('rope_texture2074_full_image___tae.hdf5')
 
 #tools.print_layer_outputs(model)
 model.summary()
@@ -312,7 +322,8 @@ loss_recorder = tools.LossRecorder()
 model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 model2.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 #tools.train(model2, in_frames, out_frames, 128, n_epochs, loss_recorder)
-#tools.train(model, in_frames, out_frames[0], 32, n_epochs, loss_recorder)
+tools.train(model, in_frames, out_frames[0], 32, n_epochs, loss_recorder)
+#tools.train(model, in_frames, out_frames[0], 64, n_epochs, loss_recorder)
 #tools.train(model, in_frames, out_frames[0], 64, 5*n_epochs, loss_recorder)
 #tools.train(model, in_frames, out_frames[0], 128, 5*n_epochs, loss_recorder)
 
