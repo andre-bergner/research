@@ -14,8 +14,6 @@ from keras_tools import functional_layers as F
 from keras_tools import extra_layers as XL
 from keras_tools import test_signals as TS
 
-from timeshift_autoencoder import predictors as P
-
 
 frame_size = 80
 shift = 8
@@ -28,7 +26,8 @@ noise_stddev = 0.05
 
 activation = fun.bind(XL.tanhx, alpha=0.2)
 act = lambda: L.Activation(activation)
-#act = lambda: L.LeakyReLU(alpha=0.2)
+# act = lambda: L.LeakyReLU(alpha=0.2)
+# OBSERVATION: LeakyReLU is less successful (or not all)
 
 dense = F.dense
 
