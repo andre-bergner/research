@@ -43,6 +43,7 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    sig_len = example_frame.shape[-1]
    x1 = F.input_like(example_frame)
    x2 = F.input_like(example_frame)
+   x3 = F.input_like(example_frame)
    eta = lambda: F.noise(noise_stddev)
 
    latent_size = sum(latent_sizes)
@@ -86,11 +87,17 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
       #decorr = K.square( K.mean(Y1 * Y2) / (K.mean(K.square(Y1)) * K.mean(K.square(Y2))) )
       decorr = K.square(K.batch_dot(Y1, K.transpose(Y2) ))
 
-      z_smoothness = K.sum( K.square(encoder(x2) - encoder(x1)) / ( .0000001 + K.square(encoder(x2) + encoder(x1)) ))
+      #z_smoothness = K.sum( K.square(encoder(x2) - encoder(x1)) / ( .0000001 + K.square(encoder(x2) + encoder(x1)) ))
       #z_smoothness = K.square(encoder(x2) - encoder(x1))[:,0]# / ( .0000001 + K.square(encoder(vx2) + encoder(vx1)) )[:,0]
       # z1_smoothness = K.mean(K.square(z1(x2) - z1(x1))) / K.mean(K.square(z1(x1) - K.mean(z1(x1))))
       # z2_smoothness = K.mean(K.square(z2(x2) - z2(x1))) / K.mean(K.square(z2(x1) - K.mean(z2(x1))))
       # z_smoothness = z1_smoothness# + z2_smoothness
+
+      zx1 = encoder(x1)
+      zx2 = encoder(x2)
+      zx3 = encoder(x3)
+
+      z_smoothness = 1 - K.mean(K.square(zx1*zx2 + zx2*zx3) / ((zx1*zx1 + zx2*zx2) * (zx2*zx2 + zx3*zx3)))
 
 
       #s = K.square(encoder(vx2) + encoder(vx1))
@@ -118,17 +125,18 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
       az2 = K.sum(K.square(z2_))
       hollowness = (K.square(az1) + K.square(az2))  - 15*(az1 + az2)
 
-      loss += decorr
-      loss += 0.5*decorr_z
-      loss += 5*hollowness
-      loss += 0.1*z_smoothness
+      #loss += decorr
+      loss += decorr_z
+      #loss += cov_z2(z1_, z2_)
+      #loss += 5*hollowness
+      loss += z_smoothness
       return loss
 
    loss = L.Lambda(loss_f, output_shape=(1,))
 
    return (
-      M.Model([x1, x2], [loss([x1, x2, y(x1)])]),
-      M.Model([x1], [y(x2)]),
+      M.Model([x1, x2, x3], [loss([x1, x2, x3, y(x1)])]),
+      M.Model([x1], [y(x1)]),
       # -----------------------
       M.Model([x1], [y1(x1)]),
       M.Model([x1], [y2(x1)]),
@@ -188,7 +196,7 @@ trainer.compile(optimizer=keras.optimizers.Adam(), loss=lambda y_true, y_pred:y_
 trainer.summary()
 
 loss_recorder = tools.LossRecorder()
-tools.train(trainer, [frames[:-1], frames[1:]], frames[:-1], 32, n_epochs, loss_recorder)
+tools.train(trainer, [frames[:-2], frames[1:-1], frames[2:]], frames[:-2], 32, n_epochs, loss_recorder)
 
 
 
