@@ -1,3 +1,8 @@
+# ANALYSIS PLAN
+# • setup no-noise, fix batch-order?
+# • measure success for different parameters (frame-size, )
+# • record init & weights for several runs → analyse success in dependence of these
+
 import numpy as np
 
 import keras
@@ -15,19 +20,26 @@ from keras_tools import extra_layers as XL
 from keras_tools import test_signals as TS
 
 
-frame_size = 80
-shift = 8
+frame_size = 128
 n_pairs = 5000
 n_latent1 = 2
 n_latent2 = 2
 n_epochs = 30
-noise_stddev = 0.05
+noise_stddev = 0.0#5
 
 
 activation = fun.bind(XL.tanhx, alpha=0.2)
+# activation = None
 act = lambda: L.Activation(activation)
 # act = lambda: L.LeakyReLU(alpha=0.2)
 # OBSERVATION: LeakyReLU is less successful (or not all)
+
+
+# OBSERVATION: ingredients for reproducable successful separation:
+# • large frame sizes: 32 was almost always failing, 128 works (almost) always
+# • enforcing projector property further helps to stabilize training
+# • noise does not seem to have big impact (at least in simple setup)
+# • nonliearity is important, training is unstable otherwise
 
 dense = F.dense
 
@@ -39,26 +51,42 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
 
    latent_size = sum(latent_sizes)
 
-   encoder = (  dense([sig_len//2])  >> act()
-             >> dense([latent_size]) >> act()
+   encoder = (  #dense([sig_len//2])  >> act() >>
+                dense([latent_size]) >> act()
              )
 
+   # encoder1 = dense([latent_sizes[0]]) >> act()
+   # encoder2 = dense([latent_sizes[1]]) >> act()
+
    slice1 = XL.Slice[:,0:latent_sizes[0]]
-   decoder1 = (  dense([sig_len//2]) >> act()
-              >> dense([sig_len]) 
+   decoder1 = (  #dense([sig_len//2]) >> act() >>
+                 dense([sig_len]) >> act()
               )
 
    slice2 = XL.Slice[:,latent_sizes[0]:]
-   decoder2 = (  dense([sig_len//2]) >> act()
-              >> dense([sig_len]) 
+   decoder2 = (  #dense([sig_len//2]) >> act() >>
+                 dense([sig_len]) >> act()
               )
 
-   ex = (eta() >> encoder >> eta())(x)
-   z1 = slice1(ex)
-   z2 = slice2(ex)
-   y1 = decoder1(z1)
-   y2 = decoder2(z2)
+   # ex = (eta() >> encoder >> eta())(x)
+   # z1 = slice1(ex)
+   # z2 = slice2(ex)
+   # y1 = decoder1(z1)
+   # y2 = decoder2(z2)
+
+   # constraint: separators are contractive (+noise) projectors (re-encode single channel):
+   # y1 = (eta() >> encoder >> slice1 >> decoder1)(x)
+   # y2 = (eta() >> encoder >> slice2 >> decoder2)(x)
+   y1 = (eta() >> encoder >> slice1 >> decoder1 >> eta() >> encoder >> slice1 >> decoder1)(x)
+   y2 = (eta() >> encoder >> slice2 >> decoder2 >> eta() >> encoder >> slice2 >> decoder2)(x)
+   # y1 = (eta() >> encoder >> slice1 >> decoder1 >> eta() >> encoder >> slice1 >> decoder1 >> eta() >> encoder >> slice1 >> decoder1)(x)
+   # y2 = (eta() >> encoder >> slice2 >> decoder2 >> eta() >> encoder >> slice2 >> decoder2 >> eta() >> encoder >> slice2 >> decoder2)(x)
+   # NEXT STEP interleave y-outs and train against them as well
+
+   # y1 = (eta() >> encoder1 >> decoder1 >> eta() >> encoder1 >> decoder1)(x)
+   # y2 = (eta() >> encoder2 >> decoder2 >> eta() >> encoder2 >> decoder2)(x)
    y = L.Add()([y1, y2])
+
 
    return (
       M.Model([x], [y]),
