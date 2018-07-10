@@ -41,10 +41,10 @@ from timeshift_autoencoder import predictors as P
 
 
 
-frame_size = 80
+frame_size = 160
 shift = 8
 n_pairs = 5000
-n_latent1 = 3
+n_latent1 = 2
 n_latent2 = 3
 n_epochs = 30
 noise_stddev = 0.01
@@ -76,8 +76,8 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
 
    encoder = (  dense([sig_len//2])  >> act()                   # >> F.dropout(0.2)
              >> dense([sig_len//4])  >> act() #>> F.batch_norm() # >> F.dropout(0.2)
-             #>> dense([latent_size]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
-             >> XL.VariationalEncoder(latent_size, sig_len, beta=0.1)
+             >> dense([latent_size]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+             #>> XL.VariationalEncoder(latent_size, sig_len, beta=0.1)
              )
 
    slice1 = XL.Slice[:,0:latent_sizes[0]]
@@ -233,6 +233,7 @@ lorenz = lambda n: TS.lorenz(n, [1,0,0])[::1]
 lorenz2 = lambda n: TS.lorenz(n+15000, [0,-1,0])[15000:]
 sig1 = lambda n: 0.3*lorenz(n)
 sig2 = lambda n: 0.3*fm_strong(n)
+sig2 = sin2
 #sig1 = lambda n: 0.3*fm_soft1(n)
 #sig2 = lambda n: 0.3*fm_soft1inv(n)
 make_2freq = lambda n: sig1(n) + sig2(n)
@@ -245,8 +246,8 @@ frames2, *_ = TS.make_training_set(sig2, frame_size=frame_size, n_pairs=n_pairs,
 
 
 
-#trainer, model, model2, mode1, mode2, encoder, dzdx = make_model(frames[0])
-_, model, model2, mode1, mode2, encoder, encoder2 = make_model2(frames[0])
+trainer, model, model2, mode1, mode2, encoder, dzdx = make_model(frames[0])
+#_, model, model2, mode1, mode2, encoder, encoder2 = make_model2(frames[0])
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
 
 model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
@@ -269,7 +270,7 @@ cheater.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 
 loss_recorder = tools.LossRecorder()
 
-tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
+tools.train(model, frames, frames, 128, 200, loss_recorder)
 #tools.train(model, frames, out_frames[0], 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 128, 15*n_epochs, loss_recorder)
 #tools.train(cheater, frames, [frames1, frames2], 32, n_epochs, loss_recorder)
@@ -343,7 +344,7 @@ def plot_joint_dist2():
 code = encoder.predict(frames)
 
 plot_modes2()
-plot_joint_dist2()
+plot_joint_dist()
 
 # plot(P.predict_signal(model, frames[0], shift, 5000), 'k')
 # plot(make_2freq(1000))
