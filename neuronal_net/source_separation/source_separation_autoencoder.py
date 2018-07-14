@@ -138,9 +138,13 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
 
    loss = L.Lambda(loss_f, output_shape=(1,))
 
+   m = M.Model([x], [y])
+   m.add_loss(0.1*K.mean(K.square((encoder >> slice1 >> decoder1)(y2))))
+   m.add_loss(0.1*K.mean(K.square((encoder >> slice2 >> decoder2)(y1))))
+
    return (
       M.Model([x], [loss([x, y])]),
-      M.Model([x], [y]),
+      m,#M.Model([x], [y]),
       None,#M.Model([x], [y, y(y)]),
       M.Model([x], [y1]),
       M.Model([x], [y2]),
@@ -207,8 +211,8 @@ def make_conv_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
 
    m = M.Model([x], [y])
 
-   m.add_loss(K.mean(K.square((encoder >> slice1 >> decoder1)(y2))))
-   m.add_loss(K.mean(K.square((encoder >> slice2 >> decoder2)(y1))))
+   m.add_loss(0.1*K.mean(K.square((encoder >> slice1 >> decoder1)(y2))))
+   m.add_loss(0.1*K.mean(K.square((encoder >> slice2 >> decoder2)(y1))))
 
    return (
       None,
@@ -324,7 +328,7 @@ frames2, *_ = TS.make_training_set(sig2, frame_size=frame_size, n_pairs=n_pairs,
 
 
 
-trainer, model, model2, mode1, mode2, encoder, dzdx = make_conv_model(frames[0])
+trainer, model, model2, mode1, mode2, encoder, dzdx = make_model(frames[0])
 #_, model, model2, mode1, mode2, encoder, encoder2 = make_model2(frames[0])
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
 
@@ -349,7 +353,7 @@ cheater.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 
 loss_recorder = tools.LossRecorder()
 
-tools.train(model, frames, frames, 128, 200, loss_recorder)
+tools.train(model, frames, frames, 128, 20, loss_recorder)
 #tools.train(model, frames, out_frames[0], 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 128, 15*n_epochs, loss_recorder)
 #tools.train(cheater, frames, [frames1, frames2], 32, n_epochs, loss_recorder)
