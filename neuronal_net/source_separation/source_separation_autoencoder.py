@@ -205,10 +205,14 @@ def make_conv_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    #y = lambda x: L.Add()([y1(x), y2(x)])
    y = L.Add()([y1, y2])
 
+   m = M.Model([x], [y])
+
+   m.add_loss(K.mean(K.square((encoder >> slice1 >> decoder1)(y2))))
+   m.add_loss(K.mean(K.square((encoder >> slice2 >> decoder2)(y1))))
 
    return (
       None,
-      M.Model([x], [y]),
+      m, #M.Model([x], [y]),
       None,
       M.Model([x], [y1]),
       M.Model([x], [y2]),
