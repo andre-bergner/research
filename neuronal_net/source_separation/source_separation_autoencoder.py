@@ -27,6 +27,7 @@ import keras
 import keras.models as M
 import keras.layers as L
 import keras.backend as K
+from keras.utils import plot_model
 
 import sys
 sys.path.append('../')
@@ -41,12 +42,12 @@ from timeshift_autoencoder import predictors as P
 
 
 
-frame_size = 160
+frame_size = 128
 shift = 8
-n_pairs = 5000
-n_latent1 = 2
+n_pairs = 10000
+n_latent1 = 3
 n_latent2 = 3
-n_epochs = 30
+n_epochs = 20
 noise_stddev = 0.01
 
 
@@ -107,6 +108,8 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    z2 = slice2(ex)
    y1 = decoder1(z1)
    y2 = decoder2(z2)
+   y1 = (eta() >> encoder >> slice1 >> decoder1 >> eta() >> encoder >> slice1 >> decoder1)(x)
+   y2 = (eta() >> encoder >> slice2 >> decoder2 >> eta() >> encoder >> slice2 >> decoder2)(x)
    #y = lambda x: L.Add()([y1(x), y2(x)])
    y = L.Add()([y1, y2])
 
@@ -145,6 +148,73 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
       None#dzdx
    )
 
+
+
+
+def make_conv_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
+
+   sig_len = example_frame.shape[-1]
+   x = F.input_like(example_frame)
+   eta = lambda: F.noise(noise_stddev)
+
+   latent_size = sum(latent_sizes)
+
+   encoder = (  F.reshape([sig_len,1])
+             >> F.conv1d(4, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(8, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(8, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(16, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(32, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(32, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(32, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.flatten()
+             >> dense([latent_size]) >> act()
+             )
+
+   slice1 = XL.Slice[:,0:latent_sizes[0]]
+   decoder1 = (  dense([1,32]) >> act()
+              >> F.up1d() >> F.conv1d(32, 5)  >> act()
+              >> F.up1d() >> F.conv1d(32, 5)  >> act()
+              >> F.up1d() >> F.conv1d(32, 5)  >> act()
+              >> F.up1d() >> F.conv1d(16, 5)  >> act()
+              >> F.up1d() >> F.conv1d(8, 5)  >> act()
+              >> F.up1d() >> F.conv1d(4, 5)  >> act()
+              >> F.up1d() >> F.conv1d(1, 5)
+              >> F.flatten()
+              )
+
+   slice2 = XL.Slice[:,latent_sizes[0]:]
+   decoder2 = (  dense([1,32]) >> act()
+              >> F.up1d() >> F.conv1d(32, 5)  >> act()
+              >> F.up1d() >> F.conv1d(32, 5)  >> act()
+              >> F.up1d() >> F.conv1d(32, 5)  >> act()
+              >> F.up1d() >> F.conv1d(16, 5)  >> act()
+              >> F.up1d() >> F.conv1d(8, 5)  >> act()
+              >> F.up1d() >> F.conv1d(4, 5)  >> act()
+              >> F.up1d() >> F.conv1d(1, 5)
+              >> F.flatten()
+              )
+
+   ex = encoder(x)
+   z1 = slice1(ex)
+   z2 = slice2(ex)
+   y1 = decoder1(z1)
+   y2 = decoder2(z2)
+   #y1 = (eta() >> encoder >> slice1 >> decoder1 >> eta() >> encoder >> slice1 >> decoder1)(x)
+   #y2 = (eta() >> encoder >> slice2 >> decoder2 >> eta() >> encoder >> slice2 >> decoder2)(x)
+   #y = lambda x: L.Add()([y1(x), y2(x)])
+   y = L.Add()([y1, y2])
+
+
+   return (
+      None,
+      M.Model([x], [y]),
+      None,
+      M.Model([x], [y1]),
+      M.Model([x], [y2]),
+      M.Model([x], [encoder(x)]),
+      None
+   )
 
 
 
@@ -218,24 +288,28 @@ def build_prediction(model, num=2000):
 
 
 #make_2freq = lambda n: 0.6*np.sin(0.05*np.arange(n)) + 0.3*np.sin(np.pi*0.05*np.arange(n))
-sin1 = lambda n: 0.64*np.sin(0.05*np.arange(n))
+sin0 = lambda n: 0.3*np.sin(0.03*np.arange(n))
+#sin1 = lambda n: 0.64*np.sin(0.05*np.arange(n))
 sin2 = lambda n: 0.3*np.sin(np.pi*0.05*np.arange(n))
 tanhsin1 = lambda n: 0.6*np.tanh(4*np.sin(0.05*np.arange(n)))
 fm_soft = lambda n: np.sin(0.07*np.arange(n) + 4*np.sin(0.00599291*np.arange(n)))
 fm_soft1 = lambda n: np.sin(np.pi*0.05*np.arange(n) + 3*np.sin(0.00599291*np.arange(n)))
-fm_soft1 = lambda n: np.sin(np.pi*0.1*np.arange(n) + 6*np.sin(0.00599291*np.arange(n)))
-fm_soft1inv = lambda n: np.sin(np.pi*0.1*np.arange(n) - 6*np.sin(0.00599291*np.arange(n)))
+fm_soft3 = lambda n: np.sin(np.pi*0.1*np.arange(n) + 6*np.sin(0.00599291*np.arange(n)))
+fm_soft3inv = lambda n: np.sin(np.pi*0.1*np.arange(n) - 6*np.sin(0.00599291*np.arange(n)))
 fm_soft2 = lambda n: np.sin(0.15*np.arange(n) + 18*np.sin(0.00599291*np.arange(n)))
 fm_med = lambda n: np.sin(0.1*np.arange(n) + 1*np.sin(0.11*np.arange(n)))
 fm_strong = lambda n: 0.5*np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)))
 fm_hyper = lambda n: np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)) + 2*np.sin(0.009*np.arange(n)))
 lorenz = lambda n: TS.lorenz(n, [1,0,0])[::1]
-lorenz2 = lambda n: TS.lorenz(n+15000, [0,-1,0])[15000:]
-sig1 = lambda n: 0.3*lorenz(n)
-sig2 = lambda n: 0.3*fm_strong(n)
-sig2 = sin2
-#sig1 = lambda n: 0.3*fm_soft1(n)
-#sig2 = lambda n: 0.3*fm_soft1inv(n)
+lorenz2 = lambda n: TS.lorenz(n+25000, [0,-1,0])[25000:]
+
+#sig1 = lambda n: 0.3*lorenz(n)
+#sig2 = lambda n: 0.3*fm_strong(n)
+#sig2 = lambda n: 0.3*fm_soft1(n)
+#sig2 = lambda n: 0.3*lorenz2(n)
+
+sig1 = lambda n: 0.3*fm_soft3(n)
+sig2 = lambda n: 0.3*fm_soft3inv(n)
 make_2freq = lambda n: sig1(n) + sig2(n)
 
 frames, out_frames, *_ = TS.make_training_set(make_2freq, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
@@ -246,12 +320,13 @@ frames2, *_ = TS.make_training_set(sig2, frame_size=frame_size, n_pairs=n_pairs,
 
 
 
-trainer, model, model2, mode1, mode2, encoder, dzdx = make_model(frames[0])
+trainer, model, model2, mode1, mode2, encoder, dzdx = make_conv_model(frames[0])
 #_, model, model2, mode1, mode2, encoder, encoder2 = make_model2(frames[0])
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
 
 model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 model.summary()
+plot_model(model, to_file='ssae.png', show_shapes=True)
 
 x = F.input_like(frames[0])
 cheater = M.Model([x], [mode1(x), mode2(x)])
