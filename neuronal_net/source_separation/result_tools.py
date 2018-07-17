@@ -35,8 +35,38 @@ def build_prediction(model, frames, num=2000):
    avg_frames *= 1./frame_size
    return avg_frames[:num]
 
-def rms(x):
-   return np.sqrt(np.mean(x*x))
+def pred_error(model, frames, gen, n):
+   return np.linalg.norm(build_prediction(model, frames, n) - gen(n))
+
+
+class LossRecorder(keras.callbacks.Callback):
+
+   def __init__(self, **kargs):
+      super(LossRecorder, self).__init__(**kargs)
+      self.losses = []
+      self.grads = []
+      self.pred_errors = []
+
+   def _current_weights(self):
+      return [l.get_weights() for l in self.model.layers if len(l.get_weights()) > 0]
+
+   def on_train_begin(self, logs={}):
+      self.last_weights = self._current_weights()
+
+   def on_batch_end(self, batch, logs={}):
+      self.losses.append(logs.get('loss'))
+      new_weights = self._current_weights()
+      self.grads.append([ (w2[0]-w1[0]).mean() for w1,w2 in zip(self.last_weights, new_weights) ])
+      self.last_weights = new_weights
+
+   def on_epoch_end(self, epoch, logs={}):
+      self.pred_errors.append(
+      [   pred_error(mode1, frames, sig1, 2048)
+      ,   pred_error(mode1, frames, sig2, 2048)
+      ,   pred_error(mode2, frames, sig2, 2048)
+      ,   pred_error(mode2, frames, sig1, 2048)
+      ])
+
 
 # --------------------------------------------------------------------------------------------------
 # VISUALIZATION
@@ -64,6 +94,22 @@ def subplots_in(n_rows, n_cols, fig, rect=[0,0,1,1]):
    return axs
 
 
+def plot_loss(ax, losses):
+   win_size = 100
+   min_mean_max = np.array([[w.min(), w.mean(), w.max()] for w in windowed(np.array(losses), win_size)])
+   batches = np.arange(min_mean_max.shape[0]) * win_size
+   ax.semilogy(batches, min_mean_max[:,0], 'k', linewidth=0.5)
+   ax.semilogy(batches, min_mean_max[:,1], 'k', linewidth=1)
+   ax.semilogy(batches, min_mean_max[:,2], 'k', linewidth=0.5)
+   ax.fill_between(batches, min_mean_max[:,0], min_mean_max[:,2])
+   # mean_std = np.array([[w.mean(), w.std()] for w in windowed(np.array(losses), win_size)])
+   # batches = np.arange(mean_std.shape[0]) * win_size
+   # ax.semilogy(batches, mean_std[:,0], 'k', linewidth=1)
+   # ax.semilogy(batches, mean_std[:,0] + mean_std[:,1], 'k', linewidth=0.5)
+   # ax.semilogy(batches, mean_std[:,0] - mean_std[:,1], 'k', linewidth=0.5)
+   # ax.fill_between(batches, mean_std[:,0] - mean_std[:,1], mean_std[:,0] + mean_std[:,1])
+
+
 def plot_joint_dist(frames, encoder, fig, rect):
    code = encoder.predict(frames)
    z_dim = code.shape[-1]
@@ -81,10 +127,10 @@ def training_summary(model, mode1, mode2, encoder, gen, sig1, sig2, frames, loss
    fig = plt.figure(figsize=(8,8))
 
    ax = fig.add_axes([0.05, 0.7, 0.4, 0.25])
-   ax.semilogy(loss_recorder.losses, 'k', linewidth=0.5)
+   plot_loss(ax, loss_recorder.losses)
    plt.title('loss')
 
-   ax = fig.add_axes([0.05, 0.4, 0.4, 0.25])
+   ax = fig.add_axes([0.05, 0.4, 0.4, 0.22])
    ax.plot(gen(2000), 'k', linewidth=0.8)
    plt.title('input')
 
@@ -92,10 +138,11 @@ def training_summary(model, mode1, mode2, encoder, gen, sig1, sig2, frames, loss
    ax.plot(build_prediction(mode1, frames, 2000), 'k', linewidth=.8)
    ax.plot(build_prediction(mode2, frames, 2000), 'b', linewidth=.8)
 
-   fig.text(0.6, 0.9, '{:1.3f}'.format(rms(build_prediction(mode1, frames, 2000) - sig1(2000))))
-   fig.text(0.8, 0.9, '{:1.3f}'.format(rms(build_prediction(mode1, frames, 2000) - sig2(2000))))
-   fig.text(0.6, 0.8, '{:1.3f}'.format(rms(build_prediction(mode2, frames, 2000) - sig2(2000))))
-   fig.text(0.8, 0.8, '{:1.3f}'.format(rms(build_prediction(mode2, frames, 2000) - sig1(2000))))
+   ax = fig.add_axes([0.55, 0.7, 0.4, 0.25])
+   pes = loss_recorder.pred_errors
+   epochs = arange(len(pes))
+   ax.semilogy(epochs, pes, 'k')
+   plt.title('reconstruction error')
 
    plot_joint_dist(frames, encoder, fig, [0.5,0.05,0.95,0.5])
 

@@ -42,11 +42,12 @@ from timeshift_autoencoder import predictors as P
 from result_tools import *
 
 
-frame_size = 128
+factor = 1
+frame_size = factor*128
 shift = 8
 n_pairs = 10000
-n_latent1 = 3
-n_latent2 = 3
+n_latent1 = 4
+n_latent2 = 4
 n_epochs = 20
 noise_stddev = 0.05
 
@@ -176,7 +177,7 @@ def make_conv_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
              )
 
    slice1 = XL.Slice[:,0:latent_sizes[0]]
-   decoder1 = (  dense([1,32]) >> act()
+   decoder1 = (  dense([factor,32]) >> act()
               >> F.up1d() >> F.conv1d(32, 5)  >> act()
               >> F.up1d() >> F.conv1d(32, 5)  >> act()
               >> F.up1d() >> F.conv1d(32, 5)  >> act()
@@ -188,7 +189,7 @@ def make_conv_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
               )
 
    slice2 = XL.Slice[:,latent_sizes[0]:]
-   decoder2 = (  dense([1,32]) >> act()
+   decoder2 = (  dense([factor,32]) >> act()
               >> F.up1d() >> F.conv1d(32, 5)  >> act()
               >> F.up1d() >> F.conv1d(32, 5)  >> act()
               >> F.up1d() >> F.conv1d(32, 5)  >> act()
@@ -298,7 +299,7 @@ lorenz2 = lambda n: TS.lorenz(n+25000, [0,-1,0])[25000:]
 
 sig1 = lambda n: 0.3*lorenz(n)
 sig2 = lambda n: 0.3*fm_strong(n)
-#sig2 = sin1
+#sig2 = sin0
 #sig2 = lambda n: 0.3*fm_soft1(n)
 #sig2 = lambda n: 0.3*lorenz2(n)
 
@@ -337,9 +338,9 @@ cheater.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 
 
 
-loss_recorder = tools.LossRecorder()
+loss_recorder = LossRecorder()
 
-tools.train(model, frames, frames, 128, 2*n_epochs, loss_recorder)
+tools.train(model, frames, frames, 128, 1*n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 128, 15*n_epochs, loss_recorder)
 #tools.train(cheater, frames, [frames1, frames2], 32, n_epochs, loss_recorder)
@@ -368,8 +369,8 @@ from pylab import *
 #    figure()
 #    plot(sig1(n), 'k')
 #    plot(sig2(n), 'k')
-#    plot(build_prediction(mode1, n), 'r')
-#    plot(build_prediction(mode2, n), 'r')
+#    plot(build_prediction(mode1, frames, n), 'r')
+#    plot(build_prediction(mode2, frames, n), 'r')
 # 
 # def plot_modes2(n=2000):
 #    figure()
