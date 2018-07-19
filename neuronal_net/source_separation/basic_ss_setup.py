@@ -3,6 +3,15 @@
 # • measure success for different parameters (frame-size, )
 # • record init & weights for several runs → analyse success in dependence of these
 
+# TODO
+# try with noisy input 
+
+# TODO
+# • generalize to N-channels
+# • train 3 sin on 3 channels
+# • train 2 sin on 3 channels
+# • train 3 sin on 2 channels
+
 import numpy as np
 
 import keras
@@ -22,8 +31,7 @@ from keras_tools import test_signals as TS
 
 frame_size = 128
 n_pairs = 5000
-n_latent1 = 2
-n_latent2 = 2
+n_latent = [2, 2, 2]
 n_epochs = 30
 noise_stddev = 0.0#5
 
@@ -43,7 +51,7 @@ act = lambda: L.Activation(activation)
 
 dense = F.dense
 
-def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
+def make_model(example_frame, latent_sizes=n_latent):
 
    sig_len = example_frame.shape[-1]
    x = F.input_like(example_frame)
@@ -55,44 +63,35 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
                 dense([latent_size]) >> act()
              )
 
-   # encoder1 = dense([latent_sizes[0]]) >> act()
-   # encoder2 = dense([latent_sizes[1]]) >> act()
+   encoder1 = dense([latent_sizes[0]]) >> act()
+   encoder2 = dense([latent_sizes[1]]) >> act()
 
-   slice1 = XL.Slice[:,0:latent_sizes[0]]
-   decoder1 = (  #dense([sig_len//2]) >> act() >>
-                 dense([sig_len]) >> act()
-              )
+   latent_sizes2 = np.concatenate([[0], np.cumsum(latent_sizes)])
 
-   slice2 = XL.Slice[:,latent_sizes[0]:]
-   decoder2 = (  #dense([sig_len//2]) >> act() >>
-                 dense([sig_len]) >> act()
-              )
-
-   # ex = (eta() >> encoder >> eta())(x)
-   # z1 = slice1(ex)
-   # z2 = slice2(ex)
-   # y1 = decoder1(z1)
-   # y2 = decoder2(z2)
+   def make_decoder(n):
+      slice = fun._ >> XL.Slice[ :, latent_sizes2[n]:latent_sizes2[n+1] ]
+      decoder = (  #dense([sig_len//2]) >> act() >>
+                   dense([sig_len]) >> act()
+                )
+      return slice >> decoder
 
    # constraint: separators are contractive (+noise) projectors (re-encode single channel):
-   # y1 = (eta() >> encoder >> slice1 >> decoder1)(x)
-   # y2 = (eta() >> encoder >> slice2 >> decoder2)(x)
-   y1 = (eta() >> encoder >> slice1 >> decoder1 >> eta() >> encoder >> slice1 >> decoder1)(x)
-   y2 = (eta() >> encoder >> slice2 >> decoder2 >> eta() >> encoder >> slice2 >> decoder2)(x)
-   # y1 = (eta() >> encoder >> slice1 >> decoder1 >> eta() >> encoder >> slice1 >> decoder1 >> eta() >> encoder >> slice1 >> decoder1)(x)
-   # y2 = (eta() >> encoder >> slice2 >> decoder2 >> eta() >> encoder >> slice2 >> decoder2 >> eta() >> encoder >> slice2 >> decoder2)(x)
    # NEXT STEP interleave y-outs and train against them as well
 
-   # y1 = (eta() >> encoder1 >> decoder1 >> eta() >> encoder1 >> decoder1)(x)
-   # y2 = (eta() >> encoder2 >> decoder2 >> eta() >> encoder2 >> decoder2)(x)
-   y = L.Add()([y1, y2])
+   decoders = [make_decoder(n) for n in range(len(latent_sizes))]
+   #channels = [(eta() >> encoder >> dec)(x) for dec in decoders]
+   channels = [(eta() >> encoder >> dec >> eta() >> encoder >> dec)(x) for dec in decoders]
+   #channels = [(eta() >> enc >> dec)(x) for enc,dec in zip(encoders, decoders)]
+   y = L.Add()(channels)
 
+   m = M.Model([x], [y])
+   # m.add_loss(1*K.mean(K.square((encoder >> decoder1)(y2))))
+   # m.add_loss(1*K.mean(K.square((encoder >> decoder2)(y1))))
 
    return (
-      M.Model([x], [y]),
-      M.Model([x], [y1]),
-      M.Model([x], [y2]),
+      m,
       M.Model([x], [encoder(x)]),
+      [M.Model([x], [c]) for c in channels]
    )
 
 
@@ -117,11 +116,13 @@ sin1 = lambda n: 0.64*np.sin(0.05*np.arange(n))
 sin2 = lambda n: 0.3*np.sin(np.pi*0.05*np.arange(n))
 sig1 = sin1
 sig2 = sin2
-signal_gen = lambda n: sig1(n) + sig2(n)
+signal_gen = lambda n: tools.add_noise(sig1(n) + sig2(n), 0.1)
 
 frames = np.array([w for w in windowed(signal_gen(n_pairs+frame_size), frame_size, 1)])
 
-model, mode1, mode2, encoder = make_model(frames[0])
+model, encoder, modes = make_model(frames[0])
+mode1 = modes[0]
+mode2 = modes[1]
 model.compile(optimizer=keras.optimizers.Adam(), loss='mse')
 model.summary()
 
@@ -149,8 +150,8 @@ def plot_modes3(n=2000):
    figure()
    plot(sig1(n), 'k')
    plot(sig2(n), 'k')
-   plot(build_prediction(mode1, n), 'r')
-   plot(build_prediction(mode2, n), 'r')
+   for m in modes:
+      plot(build_prediction(m, n), 'r')
 
 def plot_modes2(n=2000):
    figure()
@@ -163,7 +164,8 @@ def plot_orig_vs_reconst(n=2000):
 
 def plot_joint_dist():
    code = encoder.predict(frames)
-   fig, axs = plt.subplots(n_latent1+n_latent2, n_latent1+n_latent2, figsize=(8, 8))
+   z_dim = sum(n_latent)
+   fig, axs = plt.subplots(z_dim, z_dim, figsize=(8, 8))
    for ax_rows, c1 in zip(axs, code.T):
       for ax, c2 in zip(ax_rows, code.T):
          ax.plot( c2, c1, '.k', markersize=0.5)
@@ -171,5 +173,5 @@ def plot_joint_dist():
 
 code = encoder.predict(frames)
 
-plot_modes2()
+plot_modes3()
 plot_joint_dist()
