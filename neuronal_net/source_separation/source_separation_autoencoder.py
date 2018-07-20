@@ -46,8 +46,8 @@ factor = 1
 frame_size = factor*128
 shift = 8
 n_pairs = 10000
-n_latent1 = 3
-n_latent2 = 3
+n_latent1 = 4
+n_latent2 = 4
 n_epochs = 20
 noise_stddev = 0.05
 
@@ -160,6 +160,7 @@ def make_conv_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
 
    sig_len = example_frame.shape[-1]
    x = F.input_like(example_frame)
+   x_2 = F.input_like(example_frame)
    eta = lambda: F.noise(noise_stddev)
 
    latent_size = sum(latent_sizes)
@@ -176,7 +177,7 @@ def make_conv_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
              >> dense([latent_size]) >> act()
              )
 
-   slice1 = XL.Slice[:,0:latent_sizes[0]]
+   slice1 = fun._ >> XL.Slice[:,0:latent_sizes[0]]
    decoder1 = (  dense([factor,32]) >> act()
               >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
               >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
@@ -188,7 +189,7 @@ def make_conv_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
               >> F.flatten()
               )
 
-   slice2 = XL.Slice[:,latent_sizes[0]:]
+   slice2 = fun._ >> XL.Slice[:,latent_sizes[0]:]
    decoder2 = (  dense([factor,32]) >> act()
               >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
               >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
@@ -201,16 +202,19 @@ def make_conv_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
               )
 
    ex = (eta() >> encoder)(x)
-   z1 = slice1(ex)
-   z2 = slice2(ex)
-   y1 = decoder1(z1)
-   y2 = decoder2(z2)
-   #y1 = (eta() >> encoder >> slice1 >> decoder1 >> eta() >> encoder >> slice1 >> decoder1)(x)
-   #y2 = (eta() >> encoder >> slice2 >> decoder2 >> eta() >> encoder >> slice2 >> decoder2)(x)
+   y1 = (slice1 >> decoder1)(ex)
+   y2 = (slice2 >> decoder2)(ex)
+   #y1 = (slice1 >> decoder1 >> eta() >> encoder >> slice1 >> decoder1)(ex)
+   #y2 = (slice2 >> decoder2 >> eta() >> encoder >> slice2 >> decoder2)(ex)
    #y = lambda x: L.Add()([y1(x), y2(x)])
    y = L.Add()([y1, y2])
 
    m = M.Model([x], [y])
+
+
+   ex_2 = (eta() >> encoder)(x_2)
+   m_slow_feat = M.Model([x, x_2], [y])
+   m_slow_feat.add_loss(1*K.mean(K.square( ex_2[:,0:2] - ex[:,0:2] + ex_2[:,4:6] - ex[:,4:6] )))
 
    # m.add_loss(1*K.mean(K.square((encoder >> slice1 >> decoder1)(y2))))
    # m.add_loss(1*K.mean(K.square((encoder >> slice2 >> decoder2)(y1))))
@@ -222,7 +226,7 @@ def make_conv_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
       M.Model([x], [y1]),
       M.Model([x], [y2]),
       M.Model([x], [encoder(x)]),
-      None
+      m_slow_feat
    )
 
 
@@ -348,12 +352,13 @@ frames2, *_ = TS.make_training_set(sig2, frame_size=frame_size, n_pairs=n_pairs,
 
 
 
-trainer, model, model2, mode1, mode2, encoder, dzdx = make_conv_model(frames[0])
+trainer, model, model2, mode1, mode2, encoder, model_sf = make_conv_model(frames[0])
 #_, model, model2, mode1, mode2, encoder, encoder2 = make_model2(frames[0])
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
 
 model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
-model.summary()
+model_sf.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
+#model.summary()
 plot_model(model, to_file='ssae.png', show_shapes=True)
 
 x = F.input_like(frames[0])
@@ -361,19 +366,15 @@ cheater = M.Model([x], [mode1(x), mode2(x)])
 cheater.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 
 #model2.compile(optimizer=keras.optimizers.Adam(), loss='mse')
-#model2.summary()
-
 #trainer.compile(optimizer=keras.optimizers.Adam(0.0001,0.5), loss=lambda y_true, y_pred:y_pred)
-#trainer.summary()
-
 #mode1.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
-#mode1.summary()
 
 
 
 loss_recorder = LossRecorder()
 
-tools.train(model, frames, frames, 128, 1*n_epochs, loss_recorder)
+#tools.train(model, frames, frames, 128, 1*n_epochs, loss_recorder)
+tools.train(model_sf, [frames[:-1], frames[1:]], frames[:-1], 128, 1*n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 128, 15*n_epochs, loss_recorder)
 #tools.train(cheater, frames, [frames1, frames2], 32, n_epochs, loss_recorder)
