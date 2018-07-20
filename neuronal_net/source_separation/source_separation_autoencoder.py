@@ -46,8 +46,8 @@ factor = 1
 frame_size = factor*128
 shift = 8
 n_pairs = 10000
-n_latent1 = 4
-n_latent2 = 4
+n_latent1 = 3
+n_latent2 = 3
 n_epochs = 20
 noise_stddev = 0.05
 
@@ -168,34 +168,34 @@ def make_conv_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
              >> F.conv1d(4, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
              >> F.conv1d(8, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
              >> F.conv1d(8, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(16, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(32, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(32, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(32, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(16, 5, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(32, 5, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(32, 5, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(32, 5, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
              >> F.flatten()
              >> dense([latent_size]) >> act()
              )
 
    slice1 = XL.Slice[:,0:latent_sizes[0]]
    decoder1 = (  dense([factor,32]) >> act()
-              >> F.up1d() >> F.conv1d(32, 5)  >> act()
-              >> F.up1d() >> F.conv1d(32, 5)  >> act()
-              >> F.up1d() >> F.conv1d(32, 5)  >> act()
-              >> F.up1d() >> F.conv1d(16, 5)  >> act()
-              >> F.up1d() >> F.conv1d(8, 5)  >> act()
-              >> F.up1d() >> F.conv1d(4, 5)  >> act()
+              >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
+              >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
+              >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
+              >> F.up1d() >> F.conv1d(16, 5) >> act() #>> F.batch_norm()
+              >> F.up1d() >> F.conv1d(8, 5)  >> act() #>> F.batch_norm()
+              >> F.up1d() >> F.conv1d(4, 5)  >> act() #>> F.batch_norm()
               >> F.up1d() >> F.conv1d(1, 5)
               >> F.flatten()
               )
 
    slice2 = XL.Slice[:,latent_sizes[0]:]
    decoder2 = (  dense([factor,32]) >> act()
-              >> F.up1d() >> F.conv1d(32, 5)  >> act()
-              >> F.up1d() >> F.conv1d(32, 5)  >> act()
-              >> F.up1d() >> F.conv1d(32, 5)  >> act()
-              >> F.up1d() >> F.conv1d(16, 5)  >> act()
-              >> F.up1d() >> F.conv1d(8, 5)  >> act()
-              >> F.up1d() >> F.conv1d(4, 5)  >> act()
+              >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
+              >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
+              >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
+              >> F.up1d() >> F.conv1d(16, 5) >> act() #>> F.batch_norm()
+              >> F.up1d() >> F.conv1d(8, 5)  >> act() #>> F.batch_norm()
+              >> F.up1d() >> F.conv1d(4, 5)  >> act() #>> F.batch_norm()
               >> F.up1d() >> F.conv1d(1, 5)
               >> F.flatten()
               )
@@ -279,12 +279,42 @@ def make_model2(example_frame, latent_sizes=[n_latent1, n_latent2]):
       M.Model([x], [encoder2(x)]),
    )
 
+class LossRecorder(keras.callbacks.Callback):
+
+   def __init__(self, **kargs):
+      super(LossRecorder, self).__init__(**kargs)
+      self.losses = []
+      self.grads = []
+      self.pred_errors = []
+
+   def _current_weights(self):
+      return [l.get_weights() for l in self.model.layers if len(l.get_weights()) > 0]
+
+   def on_train_begin(self, logs={}):
+      self.last_weights = self._current_weights()
+
+   def on_batch_end(self, batch, logs={}):
+      self.losses.append(logs.get('loss'))
+      new_weights = self._current_weights()
+      self.grads.append([ (w2[0]-w1[0]).mean() for w1,w2 in zip(self.last_weights, new_weights) ])
+      self.last_weights = new_weights
+
+   def on_epoch_end(self, epoch, logs={}):
+      self.pred_errors.append(
+      [   pred_error(mode1, frames, sig1, 2048)
+      ,   pred_error(mode1, frames, sig2, 2048)
+      ,   pred_error(mode2, frames, sig2, 2048)
+      ,   pred_error(mode2, frames, sig1, 2048)
+      ])
+
 
 
 #make_2freq = lambda n: 0.6*np.sin(0.05*np.arange(n)) + 0.3*np.sin(np.pi*0.05*np.arange(n))
 sin0 = lambda n: 0.3*np.sin(0.03*np.arange(n))
 sin1 = lambda n: 0.64*np.sin(0.05*np.arange(n))
 sin2 = lambda n: 0.3*np.sin(np.pi*0.05*np.arange(n))
+sin1exp = lambda n: sin1(n) * np.exp(-0.001*np.arange(n))
+sin2am = lambda n: sin2(n) * (1+0.4*np.sin(0.021231*np.arange(n)))
 tanhsin1 = lambda n: 0.6*np.tanh(4*np.sin(0.05*np.arange(n)))
 fm_soft = lambda n: np.sin(0.07*np.arange(n) + 4*np.sin(0.00599291*np.arange(n)))
 fm_soft1 = lambda n: np.sin(np.pi*0.05*np.arange(n) + 3*np.sin(0.00599291*np.arange(n)))
@@ -293,12 +323,15 @@ fm_soft3inv = lambda n: np.sin(np.pi*0.1*np.arange(n) - 6*np.sin(0.00599291*np.a
 fm_soft2 = lambda n: np.sin(0.15*np.arange(n) + 18*np.sin(0.00599291*np.arange(n)))
 fm_med = lambda n: np.sin(0.1*np.arange(n) + 1*np.sin(0.11*np.arange(n)))
 fm_strong = lambda n: 0.5*np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)))
+fm_strong2 = lambda n: 0.5*np.sin(0.06*np.arange(n) + 4*np.sin(0.11*np.arange(n)))
 fm_hyper = lambda n: np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)) + 2*np.sin(0.009*np.arange(n)))
 lorenz = lambda n: TS.lorenz(n, [1,0,0])[::1]
 lorenz2 = lambda n: TS.lorenz(n+25000, [0,-1,0])[25000:]
 
-sig1 = lambda n: 0.3*lorenz(n)
-sig2 = lambda n: 0.3*fm_strong(n)
+sig1 = sin1exp
+sig2 = sin2am
+#sig1 = lambda n: 0.3*lorenz(n)
+#sig2 = lambda n: 0.3*fm_strong(n)
 #sig2 = sin0
 #sig2 = lambda n: 0.3*fm_soft1(n)
 #sig2 = lambda n: 0.3*lorenz2(n)
