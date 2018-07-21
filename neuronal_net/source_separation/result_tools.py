@@ -14,6 +14,7 @@
 # • error-rms over time
 # • loss: rec per batch → min, max mean curve
 
+import keras
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -140,7 +141,7 @@ def training_summary(model, mode1, mode2, encoder, gen, sig1, sig2, frames, loss
 
    ax = fig.add_axes([0.55, 0.7, 0.4, 0.25])
    pes = loss_recorder.pred_errors
-   epochs = arange(len(pes))
+   epochs = np.arange(len(pes))
    ax.semilogy(epochs, pes, 'k')
    plt.title('reconstruction error')
 
