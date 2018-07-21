@@ -31,6 +31,7 @@ from keras_tools import test_signals as TS
 
 frame_size = 128
 n_pairs = 5000
+#n_latent = [2, 2]
 n_latent = [2, 2, 2]
 n_epochs = 30
 noise_stddev = 0.0#5
@@ -55,6 +56,7 @@ def make_model(example_frame, latent_sizes=n_latent):
 
    sig_len = example_frame.shape[-1]
    x = F.input_like(example_frame)
+   x_2 = F.input_like(example_frame)
    eta = lambda: F.noise(noise_stddev)
 
    latent_size = sum(latent_sizes)
@@ -78,9 +80,10 @@ def make_model(example_frame, latent_sizes=n_latent):
    # constraint: separators are contractive (+noise) projectors (re-encode single channel):
    # NEXT STEP interleave y-outs and train against them as well
 
+   ex = (eta() >> encoder)(x)
    decoders = [make_decoder(n) for n in range(len(latent_sizes))]
-   #channels = [(eta() >> encoder >> dec)(x) for dec in decoders]
-   channels = [(eta() >> encoder >> dec >> eta() >> encoder >> dec)(x) for dec in decoders]
+   #channels = [dec(ex) for dec in decoders]
+   channels = [(dec >> eta() >> encoder >> dec)(ex) for dec in decoders]
    #channels = [(eta() >> enc >> dec)(x) for enc,dec in zip(encoders, decoders)]
    y = L.Add()(channels)
 
@@ -88,9 +91,17 @@ def make_model(example_frame, latent_sizes=n_latent):
    # m.add_loss(1*K.mean(K.square((encoder >> decoder1)(y2))))
    # m.add_loss(1*K.mean(K.square((encoder >> decoder2)(y1))))
 
+   ex_2 = (eta() >> encoder)(x_2)
+   channels_2 = [dec(ex_2) for dec in decoders]
+   y_2 = L.Add()(channels_2)
+   m_slow_feat = M.Model([x, x_2], [y, y_2])
+   #m_slow_feat.add_loss(1000*K.mean(K.square( ex_2[:,0:1] - ex[:,0:1] + ex_2[:,3:4] - ex[:,3:4] )))
+   m_slow_feat.add_loss(100*K.mean(K.square( encoder(x_2)[:,0:2] - encoder(x)[:,0:2] )))
+
    return (
       m,
       M.Model([x], [encoder(x)]),
+      m_slow_feat,
       [M.Model([x], [c]) for c in channels]
    )
 
@@ -114,21 +125,25 @@ def build_prediction(model, num=2000):
 
 sin1 = lambda n: 0.64*np.sin(0.05*np.arange(n))
 sin2 = lambda n: 0.3*np.sin(np.pi*0.05*np.arange(n))
+sin1exp = lambda n: sin1(n) * np.exp(-0.001*np.arange(n))
+sin2am = lambda n: sin2(n) * (1+0.4*np.sin(0.021231*np.arange(n)))
 sig1 = sin1
 sig2 = sin2
 signal_gen = lambda n: tools.add_noise(sig1(n) + sig2(n), 0.1)
 
 frames = np.array([w for w in windowed(signal_gen(n_pairs+frame_size), frame_size, 1)])
 
-model, encoder, modes = make_model(frames[0])
+model, encoder, model_sf, modes = make_model(frames[0])
 mode1 = modes[0]
 mode2 = modes[1]
 model.compile(optimizer=keras.optimizers.Adam(), loss='mse')
+model_sf.compile(optimizer=keras.optimizers.Adam(), loss='mse')
 model.summary()
 
 loss_recorder = tools.LossRecorder()
 tools.train(model, frames, frames, 32, n_epochs, loss_recorder)
-
+#tools.train(model_sf, [frames[:-1], frames[1:]], frames[:-1], 32, n_epochs, loss_recorder)
+#tools.train(model_sf, [frames[:-1], frames[1:]], [frames[:-1], frames[1:]], 32, n_epochs, loss_recorder)
 
 from pylab import *
 
