@@ -37,6 +37,7 @@ from keras_tools import functional as fun
 from keras_tools import functional_layers as F
 from keras_tools import extra_layers as XL
 from keras_tools import test_signals as TS
+from keras_tools.upsampling import UpSampling1DZeros
 
 from timeshift_autoencoder import predictors as P
 from result_tools import *
@@ -46,8 +47,8 @@ factor = 1
 frame_size = factor*128
 shift = 8
 n_pairs = 10000
-n_latent1 = 4
-n_latent2 = 4
+n_latent1 = 6
+n_latent2 = 6
 n_epochs = 20
 noise_stddev = 0.05
 
@@ -163,41 +164,52 @@ def make_conv_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    x_2 = F.input_like(example_frame)
    eta = lambda: F.noise(noise_stddev)
 
+   kernel_size = 3
+   #features = [4, 8, 8, 16, 32, 32, 32]
+   features = [4, 4, 8, 8, 16, 16, 16]
+   #features = [2, 4, 4, 4, 8, 8, 8]
+
    latent_size = sum(latent_sizes)
 
+   def up1d(factor=2):
+      #return fun._ >> UpSampling1DZeros(factor)
+      return fun._ >> L.UpSampling1D(factor)
+
+   # try skip layer / residuals
+
    encoder = (  F.reshape([sig_len,1])
-             >> F.conv1d(4, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(8, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(8, 5, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(16, 5, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(32, 5, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(32, 5, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(32, 5, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[0], kernel_size, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[1], kernel_size, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[2], kernel_size, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[3], kernel_size, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[4], kernel_size, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[5], kernel_size, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[6], kernel_size, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
              >> F.flatten()
              >> dense([latent_size]) >> act()
              )
 
    slice1 = fun._ >> XL.Slice[:,0:latent_sizes[0]]
-   decoder1 = (  dense([factor,32]) >> act()
-              >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
-              >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
-              >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
-              >> F.up1d() >> F.conv1d(16, 5) >> act() #>> F.batch_norm()
-              >> F.up1d() >> F.conv1d(8, 5)  >> act() #>> F.batch_norm()
-              >> F.up1d() >> F.conv1d(4, 5)  >> act() #>> F.batch_norm()
-              >> F.up1d() >> F.conv1d(1, 5)
+   decoder1 = (  dense([factor, features[6]]) >> act()
+              >> up1d() >> F.conv1d(features[5], kernel_size) >> act() #>> F.batch_norm()
+              >> up1d() >> F.conv1d(features[4], kernel_size) >> act() #>> F.batch_norm()
+              >> up1d() >> F.conv1d(features[3], kernel_size) >> act() #>> F.batch_norm()
+              >> up1d() >> F.conv1d(features[2], kernel_size) >> act() #>> F.batch_norm()
+              >> up1d() >> F.conv1d(features[1], kernel_size) >> act() #>> F.batch_norm()
+              >> up1d() >> F.conv1d(features[0], kernel_size) >> act() #>> F.batch_norm()
+              >> up1d() >> F.conv1d(1, kernel_size)
               >> F.flatten()
               )
 
    slice2 = fun._ >> XL.Slice[:,latent_sizes[0]:]
-   decoder2 = (  dense([factor,32]) >> act()
-              >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
-              >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
-              >> F.up1d() >> F.conv1d(32, 5) >> act() #>> F.batch_norm()
-              >> F.up1d() >> F.conv1d(16, 5) >> act() #>> F.batch_norm()
-              >> F.up1d() >> F.conv1d(8, 5)  >> act() #>> F.batch_norm()
-              >> F.up1d() >> F.conv1d(4, 5)  >> act() #>> F.batch_norm()
-              >> F.up1d() >> F.conv1d(1, 5)
+   decoder2 = (  dense([factor, features[6]]) >> act()
+              >> up1d() >> F.conv1d(features[5], kernel_size) >> act() #>> F.batch_norm()
+              >> up1d() >> F.conv1d(features[4], kernel_size) >> act() #>> F.batch_norm()
+              >> up1d() >> F.conv1d(features[3], kernel_size) >> act() #>> F.batch_norm()
+              >> up1d() >> F.conv1d(features[2], kernel_size) >> act() #>> F.batch_norm()
+              >> up1d() >> F.conv1d(features[1], kernel_size) >> act() #>> F.batch_norm()
+              >> up1d() >> F.conv1d(features[0], kernel_size) >> act() #>> F.batch_norm()
+              >> up1d() >> F.conv1d(1, kernel_size)
               >> F.flatten()
               )
 
@@ -207,9 +219,10 @@ def make_conv_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    #y1 = (slice1 >> decoder1 >> eta() >> encoder >> slice1 >> decoder1)(ex)
    #y2 = (slice2 >> decoder2 >> eta() >> encoder >> slice2 >> decoder2)(ex)
    #y = lambda x: L.Add()([y1(x), y2(x)])
-   y = L.Add()([y1, y2])
+   y = L.add([y1, y2])
 
    m = M.Model([x], [y])
+   #m.add_loss(10*K.mean( K.square(ex[:,0:2])) * K.mean(K.square(ex[:,2:])))
 
 
    ex_2 = (eta() >> encoder)(x_2)
@@ -319,6 +332,8 @@ sin1 = lambda n: 0.64*np.sin(0.05*np.arange(n))
 sin2 = lambda n: 0.3*np.sin(np.pi*0.05*np.arange(n))
 sin1exp = lambda n: sin1(n) * np.exp(-0.001*np.arange(n))
 sin2am = lambda n: sin2(n) * (1+0.4*np.sin(0.021231*np.arange(n)))
+kick1 = lambda n: np.sin( 100*np.exp(-0.001*np.arange(n)) ) * np.exp(-0.001*np.arange(n))
+kick2 = lambda n: np.sin( 250*np.exp(-0.002*np.arange(n)) ) * np.exp(-0.001*np.arange(n))
 tanhsin1 = lambda n: 0.6*np.tanh(4*np.sin(0.05*np.arange(n)))
 fm_soft = lambda n: np.sin(0.07*np.arange(n) + 4*np.sin(0.00599291*np.arange(n)))
 fm_soft1 = lambda n: np.sin(np.pi*0.05*np.arange(n) + 3*np.sin(0.00599291*np.arange(n)))
@@ -332,8 +347,8 @@ fm_hyper = lambda n: np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)) + 2*
 lorenz = lambda n: TS.lorenz(n, [1,0,0])[::1]
 lorenz2 = lambda n: TS.lorenz(n+25000, [0,-1,0])[25000:]
 
-sig1 = sin1exp
-sig2 = sin2am
+sig1 = kick2
+sig2 = sin2
 #sig1 = lambda n: 0.3*lorenz(n)
 #sig2 = lambda n: 0.3*fm_strong(n)
 #sig2 = sin0
@@ -358,7 +373,7 @@ loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y
 
 model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 model_sf.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
-#model.summary()
+model.summary()
 plot_model(model, to_file='ssae.png', show_shapes=True)
 
 x = F.input_like(frames[0])
@@ -373,8 +388,8 @@ cheater.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 
 loss_recorder = LossRecorder()
 
-#tools.train(model, frames, frames, 128, 1*n_epochs, loss_recorder)
-tools.train(model_sf, [frames[:-1], frames[1:]], frames[:-1], 128, 1*n_epochs, loss_recorder)
+tools.train(model, frames, frames, 128, 1*n_epochs, loss_recorder)
+#tools.train(model_sf, [frames[:-1], frames[1:]], frames[:-1], 128, 1*n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 32, n_epochs, loss_recorder)
 #tools.train(model, frames, out_frames[0], 128, 15*n_epochs, loss_recorder)
 #tools.train(cheater, frames, [frames1, frames2], 32, n_epochs, loss_recorder)
