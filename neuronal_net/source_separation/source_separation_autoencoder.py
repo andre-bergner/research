@@ -49,6 +49,7 @@ shift = 8
 n_pairs = 10000
 n_latent1 = 4
 n_latent2 = 4
+latent_sizes = [n_latent1, n_latent2]
 n_epochs = 20
 noise_stddev = 0.05
 
@@ -156,68 +157,73 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
 
 
 
+class ConvFactory:
 
-def make_conv_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
+   def __init__(self, example_frame, latent_sizes):
+      self.input_size = example_frame.shape[-1]
+      self.latent_sizes = latent_sizes
+      self.latent_sizes2 = np.concatenate([[0], np.cumsum(latent_sizes)])
+      self.kernel_size = 3
+      #self.features = [4, 8, 8, 16, 32, 32, 32]
+      self.features = [4, 4, 8, 8, 16, 16, 16]
+      #self.features = [2, 4, 4, 4, 8, 8, 8]
 
-   sig_len = example_frame.shape[-1]
-   x = F.input_like(example_frame)
-   x_2 = F.input_like(example_frame)
-   eta = lambda: F.noise(noise_stddev)
+      # try skip layer / residuals
 
-   kernel_size = 3
-   #features = [4, 8, 8, 16, 32, 32, 32]
-   features = [4, 4, 8, 8, 16, 16, 16]
-   #features = [2, 4, 4, 4, 8, 8, 8]
-
-   latent_size = sum(latent_sizes)
-   latent_sizes2 = np.concatenate([[0], np.cumsum(latent_sizes)])
-
+   @staticmethod
    def up1d(factor=2):
       #return fun._ >> UpSampling1DZeros(factor)
       return fun._ >> L.UpSampling1D(factor)
 
-   # try skip layer / residuals
-
-   def make_encoder():
-      return (  F.reshape([sig_len,1])
-             >> F.conv1d(features[0], kernel_size, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[1], kernel_size, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[2], kernel_size, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[3], kernel_size, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[4], kernel_size, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[5], kernel_size, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[6], kernel_size, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+   def make_encoder(self):
+      latent_size = sum(self.latent_sizes)
+      features = self.features
+      ks = self.kernel_size
+      return (  F.reshape([self.input_size,1])
+             >> F.conv1d(features[0], ks, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[1], ks, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[2], ks, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[3], ks, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[4], ks, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[5], ks, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[6], ks, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
              >> F.flatten()
              >> dense([latent_size]) >> act()
              )
 
-   def make_decoder(n):
-      return (  fun._ >> XL.Slice[:, latent_sizes2[n]:latent_sizes2[n+1]]
+   def make_decoder(self, n):
+      up = self.up1d
+      features = self.features
+      ks = self.kernel_size
+      return (  fun._ >> XL.Slice[:, self.latent_sizes2[n]:self.latent_sizes2[n+1]]
               >> dense([factor, features[6]]) >> act()
-              >> up1d() >> F.conv1d(features[5], kernel_size) >> act() #>> F.batch_norm()
-              >> up1d() >> F.conv1d(features[4], kernel_size) >> act() #>> F.batch_norm()
-              >> up1d() >> F.conv1d(features[3], kernel_size) >> act() #>> F.batch_norm()
-              >> up1d() >> F.conv1d(features[2], kernel_size) >> act() #>> F.batch_norm()
-              >> up1d() >> F.conv1d(features[1], kernel_size) >> act() #>> F.batch_norm()
-              >> up1d() >> F.conv1d(features[0], kernel_size) >> act() #>> F.batch_norm()
-              >> up1d() >> F.conv1d(1, kernel_size)
+              >> up() >> F.conv1d(features[5], ks) >> act() #>> F.batch_norm()
+              >> up() >> F.conv1d(features[4], ks) >> act() #>> F.batch_norm()
+              >> up() >> F.conv1d(features[3], ks) >> act() #>> F.batch_norm()
+              >> up() >> F.conv1d(features[2], ks) >> act() #>> F.batch_norm()
+              >> up() >> F.conv1d(features[1], ks) >> act() #>> F.batch_norm()
+              >> up() >> F.conv1d(features[0], ks) >> act() #>> F.batch_norm()
+              >> up() >> F.conv1d(1, ks)
               >> F.flatten()
               )
 
-   encoder = make_encoder()
-   decoder1 = make_decoder(0)
-   decoder2 = make_decoder(1)
 
 
+def make_factor_model(example_frame, factory):
+
+   x = F.input_like(example_frame)
+   x_2 = F.input_like(example_frame)
+   eta = lambda: F.noise(noise_stddev)
+
+   encoder = factory.make_encoder()
    ex = (eta() >> encoder)(x)
-   decoders = [make_decoder(n) for n in range(len(latent_sizes))]
+   decoders = [factory.make_decoder(n) for n in range(len(factory.latent_sizes))]
    channels = [dec(ex) for dec in decoders]
    #channels = [(dec >> eta() >> encoder >> dec)(ex) for dec in decoders]
    y = L.add(channels)
 
    m = M.Model([x], [y])
    #m.add_loss(10*K.mean( K.square(ex[:,0:2])) * K.mean(K.square(ex[:,2:])))
-
 
    ex_2 = (eta() >> encoder)(x_2)
    m_slow_feat = M.Model([x, x_2], [y])
@@ -359,7 +365,7 @@ frames2, *_ = TS.make_training_set(sig2, frame_size=frame_size, n_pairs=n_pairs,
 
 
 #trainer, model, model2, mode1, mode2, encoder, model_sf = make_model(frames[0])
-model, encoder, model_sf, [mode1, mode2] = make_conv_model(frames[0])
+model, encoder, model_sf, [mode1, mode2] = make_factor_model(frames[0], ConvFactory(frames[0], latent_sizes))
 #_, model, model2, mode1, mode2, encoder, encoder2 = make_model2(frames[0])
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
 
