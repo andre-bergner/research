@@ -26,6 +26,12 @@ def windowed(xs, win_size, hop=None):
       for n in range(0, len(xs)-win_size+1, hop):
          yield xs[n:n+win_size]
 
+def all_predictions(model, frames):
+   """Returns all parallel prediction of per sample."""
+   pred = model.predict(frames)
+   N = pred.shape[-1]
+   return np.array([pred[N-n:-n-1,n] for n in range(N)]).T
+
 def build_prediction(model, frames, num=2000):
    pred_frames = model.predict(frames[:num])
    frame_size = len(frames[0])
