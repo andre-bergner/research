@@ -18,8 +18,10 @@
 # • simplify parallel AE
 # • multi-pass ShAE
 
-# TERMS
-# • factorization
+# IDEAS:
+# • constraint on separated channels ? e.g. less fluctuations
+# • SAE with with separation in z-space
+
 
 import numpy as np
 
@@ -99,9 +101,6 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
               >> dense([sig_len]) 
               )
 
-   # IDEAS:
-   # • constraint on separated channels ? e.g. less fluctuations
-   # • SAE with with separation in z-space
 
    # y = eta() >> encoder >> eta() >> decoder
    #y1 = eta() >> encoder >> eta() >> decoder1
@@ -156,6 +155,31 @@ def make_model(example_frame, latent_sizes=[n_latent1, n_latent2]):
    )
 
 
+class DenseFactory:
+
+   def __init__(self, example_frame, latent_sizes):
+      self.input_size = example_frame.shape[-1]
+      self.latent_sizes = latent_sizes
+      self.latent_sizes2 = np.concatenate([[0], np.cumsum(latent_sizes)])
+
+   def make_encoder(self):
+      latent_size = sum(self.latent_sizes)
+
+      return (  dense([sig_len//2])  >> act()                   # >> F.dropout(0.2)
+             >> dense([sig_len//4])  >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+             >> dense([latent_size]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+             #>> XL.VariationalEncoder(latent_size, sig_len, beta=0.1)
+             )
+
+   def make_decoder(self, n):
+      return (  fun._ >> XL.Slice[:, self.latent_sizes2[n]:self.latent_sizes2[n+1]]
+              >> dense([sig_len//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+              >> dense([sig_len//2]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+              >> dense([sig_len]) 
+              )
+
+
+
 
 class ConvFactory:
 
@@ -188,7 +212,8 @@ class ConvFactory:
              >> F.conv1d(features[5], ks, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
              >> F.conv1d(features[6], ks, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
              >> F.flatten()
-             >> dense([latent_size]) >> act()
+             #>> dense([latent_size]) >> act()
+             >> XL.VariationalEncoder(latent_size, self.input_size, beta=0.01)
              )
 
    def make_decoder(self, n):
@@ -212,7 +237,7 @@ class ConvFactory:
 def make_factor_model(example_frame, factory):
 
    x = F.input_like(example_frame)
-   x_2 = F.input_like(example_frame)
+   #x_2 = F.input_like(example_frame)    # The Variational layer causes conflicts if this is in and not connected
    eta = lambda: F.noise(noise_stddev)
 
    encoder = factory.make_encoder()
@@ -225,9 +250,9 @@ def make_factor_model(example_frame, factory):
    m = M.Model([x], [y])
    #m.add_loss(10*K.mean( K.square(ex[:,0:2])) * K.mean(K.square(ex[:,2:])))
 
-   ex_2 = (eta() >> encoder)(x_2)
-   m_slow_feat = M.Model([x, x_2], [y])
-   m_slow_feat.add_loss(1*K.mean(K.square( ex_2[:,0:2] - ex[:,0:2] + ex_2[:,4:6] - ex[:,4:6] )))
+   #ex_2 = (eta() >> encoder)(x_2)
+   #m_slow_feat = M.Model([x, x_2], [y])
+   #m_slow_feat.add_loss(1*K.mean(K.square( ex_2[:,0:2] - ex[:,0:2] + ex_2[:,4:6] - ex[:,4:6] )))
 
    # m.add_loss(1*K.mean(K.square((encoder >> slice1 >> decoder1)(y2))))
    # m.add_loss(1*K.mean(K.square((encoder >> slice2 >> decoder2)(y1))))
@@ -235,7 +260,7 @@ def make_factor_model(example_frame, factory):
    return (
       m,
       M.Model([x], [encoder(x)]),
-      m_slow_feat,
+      None,#m_slow_feat,
       [M.Model([x], [c]) for c in channels]
    )
 
@@ -344,10 +369,10 @@ fm_hyper = lambda n: np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)) + 2*
 lorenz = lambda n: TS.lorenz(n, [1,0,0])[::1]
 lorenz2 = lambda n: TS.lorenz(n+25000, [0,-1,0])[25000:]
 
-#sig1 = kick2
-#sig2 = sin2
-sig1 = lambda n: 0.3*lorenz(n)
-sig2 = lambda n: 0.3*fm_strong(n)
+sig1 = kick2
+sig2 = sin2
+#sig1 = lambda n: 0.3*lorenz(n)
+#sig2 = lambda n: 0.3*fm_strong(n)
 #sig2 = sin0
 #sig2 = lambda n: 0.3*fm_soft1(n)
 #sig2 = lambda n: 0.3*lorenz2(n)
@@ -370,7 +395,7 @@ model, encoder, model_sf, [mode1, mode2] = make_factor_model(frames[0], ConvFact
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
 
 model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
-model_sf.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
+#model_sf.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 model.summary()
 plot_model(model, to_file='ssae.png', show_shapes=True)
 
@@ -412,12 +437,12 @@ from pylab import *
 #    plot(sig2(frame_size+n)[n:n+frame_size], 'g')
 # 
 # 
-# def plot_modes3(n=2000):
-#    figure()
-#    plot(sig1(n), 'k')
-#    plot(sig2(n), 'k')
-#    plot(build_prediction(mode1, frames, n), 'r')
-#    plot(build_prediction(mode2, frames, n), 'r')
+def plot_modes3(n=2000):
+   figure()
+   plot(sig1(n), 'k')
+   plot(sig2(n), 'k')
+   plot(build_prediction(mode1, frames, n), 'r')
+   plot(build_prediction(mode2, frames, n), 'r')
 # 
 # def plot_modes2(n=2000):
 #    figure()
