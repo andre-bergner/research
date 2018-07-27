@@ -86,6 +86,30 @@ class Slice(Layer, metaclass=MetaSlice):
 
 
 
+class AppendDimension(L.Layer):
+
+   """AppendDimension layer
+
+   AppendDimension extends the dimensionality of the input tensor by one.
+
+   # Input shape
+     ND tensor with shape `(batch, dim1, ..., dimN)`
+
+   # Output shape
+     ND tensor with shape `(batch, dim1, ..., dimN, 1)
+   """
+
+   def __init__(self, *args, **kwargs):
+      super(AppendDimension, self).__init__(*args, **kwargs)
+
+   def compute_output_shape(self, input_shape):
+      return (*input_shape, 1)
+
+   def call(self, inputs, training=None):
+      return K.expand_dims(inputs)
+
+
+
 class VariationalEncoder(L.Layer):
 
    def __init__(self, latent_size, data_size, beta=1, *args, **kwargs):
