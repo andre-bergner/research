@@ -166,17 +166,17 @@ class DenseFactory:
    def make_encoder(self):
       latent_size = sum(self.latent_sizes)
 
-      return (  dense([sig_len//2])  >> act()                   # >> F.dropout(0.2)
-             >> dense([sig_len//4])  >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+      return (  dense([self.input_size//2])  >> act()                   # >> F.dropout(0.2)
+             >> dense([self.input_size//4])  >> act() #>> F.batch_norm() # >> F.dropout(0.2)
              >> dense([latent_size]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
-             #>> XL.VariationalEncoder(latent_size, sig_len, beta=0.1)
+             #>> XL.VariationalEncoder(latent_size, self.input_size, beta=0.1)
              )
 
    def make_decoder(self, n):
       return (  fun._ >> XL.Slice[:, self.latent_sizes2[n]:self.latent_sizes2[n+1]]
-              >> dense([sig_len//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
-              >> dense([sig_len//2]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
-              >> dense([sig_len]) 
+              >> dense([self.input_size//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+              >> dense([self.input_size//2]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+              >> dense([self.input_size])
               )
 
 
@@ -368,7 +368,9 @@ frames2, *_ = TS.make_training_set(sig2, frame_size=frame_size, n_pairs=n_pairs,
 
 
 #trainer, model, model2, mode1, mode2, encoder, model_sf = make_model(frames[0])
-model, encoder, model_sf, [mode1, mode2] = make_factor_model(frames[0], ConvFactory(frames[0], latent_sizes))
+#factory = DenseFactory
+factory = ConvFactory
+model, encoder, model_sf, [mode1, mode2] = make_factor_model(frames[0], factory(frames[0], latent_sizes))
 #_, model, model2, mode1, mode2, encoder, encoder2 = make_model2(frames[0])
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
 
