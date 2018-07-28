@@ -53,7 +53,7 @@ n_pairs = 10000
 n_latent1 = 4
 n_latent2 = 4
 latent_sizes = [n_latent1, n_latent2]
-n_epochs = 20
+n_epochs = 10
 noise_stddev = 0.05
 
 
@@ -372,14 +372,14 @@ model, encoder, model_sf, [mode1, mode2] = make_factor_model(frames[0], ConvFact
 #_, model, model2, mode1, mode2, encoder, encoder2 = make_model2(frames[0])
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
 
-model.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
+model.compile(optimizer=keras.optimizers.Adam(lr=0.01, beta_1=0.7, beta_2=0.9, decay=0.0001), loss=loss_function)
 #model_sf.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 model.summary()
 plot_model(model, to_file='ssae.png', show_shapes=True)
 
-x = F.input_like(frames[0])
-cheater = M.Model([x], [mode1(x), mode2(x)])
-cheater.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
+#x = F.input_like(frames[0])
+#cheater = M.Model([x], [mode1(x), mode2(x)])
+#cheater.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 
 #model2.compile(optimizer=keras.optimizers.Adam(), loss='mse')
 #trainer.compile(optimizer=keras.optimizers.Adam(0.0001,0.5), loss=lambda y_true, y_pred:y_pred)
