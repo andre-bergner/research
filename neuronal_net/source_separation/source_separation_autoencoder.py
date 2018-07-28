@@ -43,6 +43,7 @@ from keras_tools.upsampling import UpSampling1DZeros
 
 from timeshift_autoencoder import predictors as P
 from result_tools import *
+from test_data import *
 
 
 factor = 1
@@ -203,7 +204,7 @@ class ConvFactory:
       latent_size = sum(self.latent_sizes)
       features = self.features
       ks = self.kernel_size
-      return (  F.reshape([self.input_size,1])
+      return (  F.append_dimension()
              >> F.conv1d(features[0], ks, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
              >> F.conv1d(features[1], ks, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
              >> F.conv1d(features[2], ks, 2)  >> act() #>> F.batch_norm() # >> F.dropout(0.5)
@@ -212,8 +213,8 @@ class ConvFactory:
              >> F.conv1d(features[5], ks, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
              >> F.conv1d(features[6], ks, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
              >> F.flatten()
-             #>> dense([latent_size]) >> act()
-             >> XL.VariationalEncoder(latent_size, self.input_size, beta=0.01)
+             >> dense([latent_size]) >> act()
+             #>> XL.VariationalEncoder(latent_size, self.input_size, beta=0.01)
              )
 
    def make_decoder(self, n):
@@ -347,41 +348,18 @@ class LossRecorder(keras.callbacks.Callback):
       ])
 
 
+#sig1, sig2 = kicks_sin1
+sig1, sig2 = lorenz_fm
 
-#make_2freq = lambda n: 0.6*np.sin(0.05*np.arange(n)) + 0.3*np.sin(np.pi*0.05*np.arange(n))
-sin0 = lambda n: 0.3*np.sin(0.03*np.arange(n))
-sin1 = lambda n: 0.64*np.sin(0.05*np.arange(n))
-sin2 = lambda n: 0.3*np.sin(np.pi*0.05*np.arange(n))
-sin1exp = lambda n: sin1(n) * np.exp(-0.001*np.arange(n))
-sin2am = lambda n: sin2(n) * (1+0.4*np.sin(0.021231*np.arange(n)))
-kick1 = lambda n: np.sin( 100*np.exp(-0.001*np.arange(n)) ) * np.exp(-0.001*np.arange(n))
-kick2 = lambda n: np.sin( 250*np.exp(-0.002*np.arange(n)) ) * np.exp(-0.001*np.arange(n))
-tanhsin1 = lambda n: 0.6*np.tanh(4*np.sin(0.05*np.arange(n)))
-fm_soft = lambda n: np.sin(0.07*np.arange(n) + 4*np.sin(0.00599291*np.arange(n)))
-fm_soft1 = lambda n: np.sin(np.pi*0.05*np.arange(n) + 3*np.sin(0.00599291*np.arange(n)))
-fm_soft3 = lambda n: np.sin(np.pi*0.1*np.arange(n) + 6*np.sin(0.00599291*np.arange(n)))
-fm_soft3inv = lambda n: np.sin(np.pi*0.1*np.arange(n) - 6*np.sin(0.00599291*np.arange(n)))
-fm_soft2 = lambda n: np.sin(0.15*np.arange(n) + 18*np.sin(0.00599291*np.arange(n)))
-fm_med = lambda n: np.sin(0.1*np.arange(n) + 1*np.sin(0.11*np.arange(n)))
-fm_strong = lambda n: 0.5*np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)))
-fm_strong2 = lambda n: 0.5*np.sin(0.06*np.arange(n) + 4*np.sin(0.11*np.arange(n)))
-fm_hyper = lambda n: np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.arange(n)) + 2*np.sin(0.009*np.arange(n)))
-lorenz = lambda n: TS.lorenz(n, [1,0,0])[::1]
-lorenz2 = lambda n: TS.lorenz(n+25000, [0,-1,0])[25000:]
-
-sig1 = kick2
-sig2 = sin2
-#sig1 = lambda n: 0.3*lorenz(n)
-#sig2 = lambda n: 0.3*fm_strong(n)
 #sig2 = sin0
-#sig2 = lambda n: 0.3*fm_soft1(n)
-#sig2 = lambda n: 0.3*lorenz2(n)
+#sig2 = 0.3*fm_soft1(n)
+#sig2 = 0.3*lorenz2(n)
 
 #sig1 = lambda n: 0.3*fm_soft3(n)
 #sig2 = lambda n: 0.3*fm_soft3inv(n)
-make_2freq = lambda n: sig1(n) + sig2(n)
+sig_gen = sig1 + sig2
 
-frames, out_frames, *_ = TS.make_training_set(make_2freq, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
+frames, out_frames, *_ = TS.make_training_set(sig_gen, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 
 frames1, *_ = TS.make_training_set(sig1, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 frames2, *_ = TS.make_training_set(sig2, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
@@ -451,7 +429,7 @@ def plot_modes3(n=2000):
 # 
 # def plot_orig_vs_reconst(n=2000):
 #    plot(build_prediction(model, n))
-#    plot(make_2freq(n))
+#    plot(sig_gen(n))
 # 
 # def plot_joint_dist():
 #    code = encoder.predict(frames)
@@ -474,10 +452,10 @@ def plot_modes3(n=2000):
 
 code = encoder.predict(frames)
 
-training_summary(model, mode1, mode2, encoder, make_2freq, sig1, sig2, frames, loss_recorder)
+training_summary(model, mode1, mode2, encoder, sig_gen, sig1, sig2, frames, loss_recorder)
 
 # plot_modes2()
 # plot_joint_dist()
 
 # plot(P.predict_signal(model, frames[0], shift, 5000), 'k')
-# plot(make_2freq(1000))
+# plot(sig_gen(1000))
