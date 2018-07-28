@@ -61,3 +61,4 @@ two_sin = 0.64*sin1, 0.3*sin2
 lorenz_fm = 0.3*lorenz, 0.15*fm_strong
 kicks_sin1 = kicks2, 0.3*sin2
 kicks_sin2 = kicks2, sin2
+fm_twins = fm_soft3, fm_soft3inv
