@@ -46,12 +46,12 @@ from result_tools import *
 from test_data import *
 
 
-factor = 1
+factor = 2
 frame_size = factor*128
 shift = 8
-n_pairs = 10000
-n_latent1 = 4
-n_latent2 = 4
+n_pairs = 20000
+n_latent1 = 5
+n_latent2 = 5
 latent_sizes = [n_latent1, n_latent2]
 n_epochs = 10
 noise_stddev = 0.05
@@ -93,7 +93,7 @@ class ConvFactory:
       self.input_size = example_frame.shape[-1]
       self.latent_sizes = latent_sizes
       self.latent_sizes2 = np.concatenate([[0], np.cumsum(latent_sizes)])
-      self.kernel_size = 3
+      self.kernel_size = 5
       #self.features = [4, 8, 8, 16, 32, 32, 32]
       self.features = [4, 4, 8, 8, 16, 16, 16]
       #self.features = [2, 4, 4, 4, 8, 8, 8]
@@ -118,8 +118,8 @@ class ConvFactory:
              >> F.conv1d(features[5], ks, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
              >> F.conv1d(features[6], ks, 2) >> act() #>> F.batch_norm() # >> F.dropout(0.5)
              >> F.flatten()
-             >> F.dense([latent_size]) >> act()
-             #>> XL.VariationalEncoder(latent_size, self.input_size, beta=0.01)
+             #>> F.dense([latent_size]) >> act()
+             >> XL.VariationalEncoder(latent_size, self.input_size, beta=0.01)
              )
 
    def make_decoder(self, n):
@@ -145,12 +145,13 @@ def make_factor_model(example_frame, factory):
    x = F.input_like(example_frame)
    #x_2 = F.input_like(example_frame)    # The Variational layer causes conflicts if this is in and not connected
    eta = lambda: F.noise(noise_stddev)
+   eta2 = lambda: F.noise(0.1)
 
    encoder = factory.make_encoder()
    ex = (eta() >> encoder)(x)
    decoders = [factory.make_decoder(n) for n in range(len(factory.latent_sizes))]
    channels = [dec(ex) for dec in decoders]
-   #channels = [(dec >> eta() >> encoder >> dec)(ex) for dec in decoders]
+   #channels = [(dec >> eta2() >> encoder >> dec)(ex) for dec in decoders]
    y = L.add(channels)
 
    m = M.Model([x], [y])
@@ -201,12 +202,19 @@ class LossRecorder(keras.callbacks.Callback):
       ])
 
 
+#sig1, sig2 = two_sin
 #sig1, sig2 = kicks_sin1
 #sig1, sig2 = lorenz_fm
-sig1, sig2 = fm_twins
+#sig1, sig2 = fm_twins
+#sig1, sig2 = tanhsin1, sin2
+#sig1, sig2 = tanhsin1, sin4
+sig1, sig2 = cello, clarinet
 sig_gen = sig1 + sig2
+sig_gen_s = lambda n: sig1(n) + sig2(n+100)[100:]
 
-frames, out_frames, *_ = TS.make_training_set(sig_gen, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
+#TRY: project extracted mode for extracted_mode + noise
+
+frames, *_ = TS.make_training_set(sig_gen, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 
 frames1, *_ = TS.make_training_set(sig1, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
 frames2, *_ = TS.make_training_set(sig2, frame_size=frame_size, n_pairs=n_pairs, shift=shift, n_out=2)
@@ -221,10 +229,10 @@ model, encoder, model_sf, [mode1, mode2] = make_factor_model(frames[0], factory(
 #_, model, model2, mode1, mode2, encoder, encoder2 = make_model2(frames[0])
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
 
-model.compile(optimizer=keras.optimizers.Adam(lr=0.01, beta_1=0.7, beta_2=0.9, decay=0.0001), loss=loss_function)
+model.compile(optimizer=keras.optimizers.Adam(lr=0.01, beta_1=0.9, beta_2=0.999, decay=0.0001), loss=loss_function)
 #model_sf.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 model.summary()
-plot_model(model, to_file='ssae.png', show_shapes=True)
+#plot_model(model, to_file='ssae.png', show_shapes=True)
 
 #x = F.input_like(frames[0])
 #cheater = M.Model([x], [mode1(x), mode2(x)])
@@ -255,3 +263,11 @@ def plot_modes3(n=2000):
 code = encoder.predict(frames)
 
 training_summary(model, mode1, mode2, encoder, sig_gen, sig1, sig2, frames, loss_recorder)
+
+
+
+from sklearn.decomposition import FastICA, PCA
+
+def ica(x, n_components, max_iter=1000):
+   ica_trafo = FastICA(n_components=n_components, max_iter=max_iter)
+   return ica_trafo.fit_transform(x)

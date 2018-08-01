@@ -3,6 +3,7 @@ import numpy as np
 import sys
 sys.path.append('../')
 from keras_tools import test_signals as TS
+from keras_tools import wavfile as W
 
 class LazyGenerator():
 
@@ -34,6 +35,7 @@ sin0 = LazyGenerator(lambda n: np.sin(0.03*np.arange(n)))
 sin1 = LazyGenerator(lambda n: np.sin(0.05*np.arange(n)))
 sin2 = LazyGenerator(lambda n: np.sin(np.pi*0.05*np.arange(n)))
 sin3 = LazyGenerator(lambda n: np.sin(0.021231*np.arange(n)))
+sin4 = LazyGenerator(lambda n: np.sin(np.pi*0.3*np.arange(n)))
 exp1 = LazyGenerator(lambda n: np.exp(-0.001*np.arange(n)))
 sin1exp = sin1 * exp1
 sin2am = sin2 * (1 + 0.4*sin3)
@@ -54,6 +56,13 @@ fm_hyper = LazyGenerator(lambda n: np.sin(0.02*np.arange(n) + 4*np.sin(0.11*np.a
 lorenz = LazyGenerator(lambda n: TS.lorenz(n, [1,0,0])[::1])
 lorenz2 = LazyGenerator(lambda n: TS.lorenz(n+25000, [0,-1,0])[25000:])
 
+cello_wav = W.loadwav("./wav/Kawai-K5000W-Cello-C2.wav")
+#cello = LazyGenerator(lambda n: cello_wav[2000:2000+n,0])
+cello = LazyGenerator(lambda n: cello_wav[2000+np.linspace(0,1.31*n, n, dtype=int),0])
+#bassoon_wav = W.loadwav("./wav/E-Mu-Proteus-FX-Bassoon-C3.wav")
+clarinet_wav = W.loadwav("./wav/Ensoniq-SQ-1-Clarinet-C4.wav")
+clarinet = LazyGenerator(lambda n: clarinet_wav[2000:2000+n,0])
+
 
 # some often used test pairs
 
@@ -62,3 +71,8 @@ lorenz_fm = 0.3*lorenz, 0.15*fm_strong
 kicks_sin1 = kicks2, 0.3*sin2
 kicks_sin2 = kicks2, sin2
 fm_twins = fm_soft3, fm_soft3inv
+
+
+
+
+
