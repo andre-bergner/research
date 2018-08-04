@@ -112,11 +112,12 @@ class AppendDimension(L.Layer):
 
 class VariationalEncoder(L.Layer):
 
-   def __init__(self, latent_size, data_size, beta=1, *args, **kwargs):
+   def __init__(self, latent_size, data_size, beta=1, no_sampling=False, *args, **kwargs):
       super(VariationalEncoder, self).__init__(*args, **kwargs)
       self.latent_size = latent_size
       self.data_size = data_size
       self.beta = beta
+      self.no_sampling = no_sampling
 
    def compute_output_shape(self, input_shape):
       return (input_shape[0], self.latent_size)
@@ -127,8 +128,10 @@ class VariationalEncoder(L.Layer):
          mu, log_sigma = args
          epsilon = K.random_normal(shape=K.shape(mu))
          sigma = K.exp(0.5 * log_sigma)
-         return K.in_train_phase(mu + sigma * epsilon, mu + sigma, training=training)
-         #return mu + sigma * epsilon
+         if self.no_sampling:
+            return mu + sigma
+         else:
+            return K.in_train_phase(mu + sigma * epsilon, mu + sigma, training=training)
 
       h = inputs
       mu = L.Dense(self.latent_size, name='mu')(h)
