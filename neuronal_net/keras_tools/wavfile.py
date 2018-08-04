@@ -1,12 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-# ---------------------------------------------------------------------------------------------------------
-# (c) Copyright André Bergner, 2012-2015
-# This file is free software and may be  altered, distributed and used in commercial products without fees.
-# However, this copyright notice may not be removed!
-# ---------------------------------------------------------------------------------------------------------
-
 import numpy as np
 
 
@@ -46,13 +37,9 @@ def loadwav(filename, N_frames2read=0):
     return np.reshape(data, [N_frames, N_channels]) * norm
 
 
-def savewav(filename, data, samplerate, format):
+def savewav(filename, data, samplerate):
 
     import wave
-
-#   TODO:  something similar like below ....
-#   if filename.__class__ != ''.__class__:
-#      raise TypeError("wrong argument type! expecting a string containing the file name")
 
     data = np.array(data)       # convert to numpy array
 
@@ -74,15 +61,11 @@ def savewav(filename, data, samplerate, format):
     wf.setnchannels(N_channels)
     wf.setframerate(samplerate)
     wf.setcomptype('NONE', '')
-    wf.setsampwidth(format.itemsize)
+    wf.setsampwidth(2)
 
-    amplitude = 2**(format.itemsize * 8 - 1) - 1
+    amplitude = 2**15
 
-    if format.itemsize == 1:  # 8 bit WAV needs to be written as unsigned data
-        wf.writeframes(np.array(amplitude * data + amplitude + 1, format).T.tostring())
-    else:
-        wf.writeframes(np.array(amplitude * data, format).T.tostring())
-
+    wf.writeframes(np.array(amplitude * data, dtype='int16').T.tostring())
     wf.close()
 
 
@@ -143,39 +126,6 @@ def txt2wav(txt_filename, overwrite=False):
     savewav(wav_filename, np.loadtxt(txt_filename))
     print("saved to file '", wav_filename, "'")
 
-
-"""
-class WaveFile ( np.ndarray ):      # should be esstentially an numpy array
-
-
-   # ------ CONSTRUCTOR -----------------
-
-   def  __init__ ( self , arg ):
-
-      if arg.__class__ == ''.__class__:      # --- case string -> file name
-
-         filename = arg
-
-         try:
-            self.wavfile = wave.open( filename )
-
-         except IOError:
-            print "ERROR: could not open file", filename
-            return
-
-         self.signal = signal
-         self.sr = 44100
-         #...
-
-      elif arg.__class__ == [].__class__  \
-        or arg.__class__ == numpy.ndarray:   # --- case numpy.array
-
-         pass
-
-      else:
-         print "ERROR: unknown type", arg.__class__, "of passed variable!"
-
-"""
 
 
 def usage():
