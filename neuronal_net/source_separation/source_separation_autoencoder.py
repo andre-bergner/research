@@ -221,6 +221,7 @@ sig1, sig2 = lorenz_fm
 #sig1, sig2 = tanhsin1, sin2
 #sig1, sig2 = tanhsin1, sin4
 #sig1, sig2 = cello, clarinet
+#sig1, sig2 = cello_dis3, choir_e4
 
 sig_gen = sig1 + sig2
 sig_gen_s = lambda n: sig1(n) + sig2(n+100)[100:]

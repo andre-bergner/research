@@ -63,6 +63,11 @@ cello = LazyGenerator(lambda n: cello_wav[2000+np.linspace(0,1.31*n, n, dtype=in
 clarinet_wav = W.loadwav("./wav/Ensoniq-SQ-1-Clarinet-C4.wav")
 clarinet = LazyGenerator(lambda n: clarinet_wav[2000:2000+n,0])
 
+cello_dis3_wav = W.loadwav("./wav/cello5/4_D#3.wav")
+cello_dis3 = LazyGenerator(lambda n: cello_dis3_wav[:n,0])
+choir_e4_wav = W.loadwav("./wav/boychoir e4.wav")
+choir_e4 = LazyGenerator(lambda n: choir_e4_wav[:n,0])
+
 
 # some often used test pairs
 
