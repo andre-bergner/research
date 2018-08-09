@@ -53,3 +53,44 @@ def victor_entropy(X):
    return np.mean(np.log2(min_dist)) + np.log2(2*(n-1) / d) + em/np.log(2)
 
    return H
+
+
+def sample_entropy(U, m, r):
+
+   def maxdist(win_n, win_m):
+      #result = max([abs(ua - va) for ua, va in zip(win_n, win_m)])
+      #return result
+      return norm(win_n - win_m)
+
+   def phi(m):
+      wins = np.array([[U[j] for j in range(i, i + m - 1 + 1)] for i in range(N - m + 1)])
+      C = [
+         len([
+            1 for j in range(len(wins))
+            if i != j and maxdist(wins[i], wins[j]) <= r
+         ])
+         for i in range(len(wins))
+      ]
+      return sum(C)
+
+   N = len(U)
+    
+   return -np.log(phi(m+1) / phi(m))
+
+
+def naive_mutual_information(x, y, bins=32):
+
+   pxy, *_ = np.histogram2d(x, y, bins=bins)
+   pxy /= sum(pxy)
+   px = np.sum(pxy, axis=0)
+   py = np.sum(pxy, axis=1)
+   return np.sum(pxy * np.log(0.000001 + pxy / (0.000001 + np.outer(py,px))))
+
+
+from scipy.stats import chi2_contingency
+
+def mutual_information(x, y, bins=32):
+    c_xy = np.histogram2d(x, y, bins)[0]
+    g, p, dof, expected = chi2_contingency(c_xy, lambda_="log-likelihood")
+    mi = 0.5 * g / c_xy.sum()
+    return mi

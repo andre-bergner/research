@@ -44,6 +44,7 @@ from keras_tools.upsampling import UpSampling1DZeros
 from timeshift_autoencoder import predictors as P
 from result_tools import *
 from test_data import *
+from entropy import naive_mutual_information, mutual_information
 
 
 factor = 1
@@ -184,6 +185,7 @@ class LossRecorder(keras.callbacks.Callback):
       self.losses = []
       self.grads = []
       self.pred_errors = []
+      #self.mutual_information = []
 
    def _current_weights(self):
       return [l.get_weights() for l in self.model.layers if len(l.get_weights()) > 0]
@@ -204,6 +206,12 @@ class LossRecorder(keras.callbacks.Callback):
       ,   pred_error(mode2, frames, sig2, 2048)
       ,   pred_error(mode2, frames, sig1, 2048)
       ])
+      #self.mutual_information.append(
+      #   mutual_information(
+      #      build_prediction(mode1, frames, 2000),
+      #      build_prediction(mode2, frames, 2000)
+      #   )
+      #)
 
 
 #sig1, sig2 = two_sin
@@ -213,6 +221,7 @@ sig1, sig2 = lorenz_fm
 #sig1, sig2 = tanhsin1, sin2
 #sig1, sig2 = tanhsin1, sin4
 #sig1, sig2 = cello, clarinet
+
 sig_gen = sig1 + sig2
 sig_gen_s = lambda n: sig1(n) + sig2(n+100)[100:]
 
