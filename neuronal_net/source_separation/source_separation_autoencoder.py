@@ -93,7 +93,6 @@ class ConvFactory:
    def __init__(self, example_frame, latent_sizes, use_batch_norm=False):
       self.input_size = example_frame.shape[-1]
       self.latent_sizes = latent_sizes
-      self.latent_sizes2 = np.concatenate([[0], np.cumsum(latent_sizes)])
       self.kernel_size = 5
       #self.features = [4, 8, 8, 16, 32, 32, 32]
       self.features = [4, 4, 8, 8, 16, 16, 16]
@@ -110,8 +109,8 @@ class ConvFactory:
       #return fun._ >> UpSampling1DZeros(factor)
       return fun._ >> L.UpSampling1D(factor)
 
-   def make_encoder(self):
-      latent_size = sum(self.latent_sizes)
+   def make_encoder(self, latent_size=None):
+      if latent_size == None: latent_size = sum(self.latent_sizes)
       features = self.features
       ks = self.kernel_size
       return (  F.append_dimension()
@@ -127,36 +126,48 @@ class ConvFactory:
              #>> XL.VariationalEncoder(latent_size, self.input_size, beta=0.01, no_sampling=True)
              )
 
-   def make_decoder(self, n):
+   def make_decoder(self):
       up = self.up1d
       features = self.features
       ks = self.kernel_size
-      return (  fun._ >> XL.Slice[:, self.latent_sizes2[n]:self.latent_sizes2[n+1]]
-              >> F.dense([factor, features[6]]) >> act()
-              >> up() >> F.conv1d(features[5], ks) >> act() >> self.batch_norm()
-              >> up() >> F.conv1d(features[4], ks) >> act() >> self.batch_norm()
-              >> up() >> F.conv1d(features[3], ks) >> act() >> self.batch_norm()
-              >> up() >> F.conv1d(features[2], ks) >> act() >> self.batch_norm()
-              >> up() >> F.conv1d(features[1], ks) >> act() >> self.batch_norm()
-              >> up() >> F.conv1d(features[0], ks) >> act() >> self.batch_norm()
-              >> up() >> F.conv1d(1, ks)
-              >> F.flatten()
-              )
+      return (  F.dense([factor, features[6]]) >> act()
+             >> up() >> F.conv1d(features[5], ks) >> act() >> self.batch_norm()
+             >> up() >> F.conv1d(features[4], ks) >> act() >> self.batch_norm()
+             >> up() >> F.conv1d(features[3], ks) >> act() >> self.batch_norm()
+             >> up() >> F.conv1d(features[2], ks) >> act() >> self.batch_norm()
+             >> up() >> F.conv1d(features[1], ks) >> act() >> self.batch_norm()
+             >> up() >> F.conv1d(features[0], ks) >> act() >> self.batch_norm()
+             >> up() >> F.conv1d(1, ks)
+             >> F.flatten()
+             )
 
 
 
-def make_factor_model(example_frame, factory):
+def make_factor_model(example_frame, factory, shared_encoder=True):
 
    x = F.input_like(example_frame)
    #x_2 = F.input_like(example_frame)    # The Variational layer causes conflicts if this is in and not connected
    eta = lambda: F.noise(noise_stddev)
    eta2 = lambda: F.noise(0.1)
 
-   encoder = factory.make_encoder()
-   ex = (eta() >> encoder)(x)
-   decoders = [factory.make_decoder(n) for n in range(len(factory.latent_sizes))]
-   channels = [dec(ex) for dec in decoders]
+
+   if shared_encoder:
+      encoder = factory.make_encoder()
+      cum_latent_sizes = np.concatenate([[0], np.cumsum(latent_sizes)])
+      decoders = [
+         fun._ >> XL.Slice[:, cum_latent_sizes[n]:cum_latent_sizes[n+1]] >> factory.make_decoder()
+         for n in range(len(factory.latent_sizes))
+      ]
+      ex = (eta() >> encoder)(x)
+      channels = [dec(ex) for dec in decoders]
+   else:
+      encoders = [factory.make_encoder(z) for z in factory.latent_sizes]
+      decoders = [factory.make_decoder() for n in range(len(factory.latent_sizes))]
+      channels = [(eta() >> enc >> dec)(x) for enc, dec in zip(encoders, decoders)]
+      ex = L.concatenate([e(x) for e in encoders])
+
    #channels = [(dec >> eta2() >> encoder >> dec)(ex) for dec in decoders]
+
    y = L.add(channels)
 
    m = M.Model([x], [y])
@@ -171,7 +182,7 @@ def make_factor_model(example_frame, factory):
 
    return (
       m,
-      M.Model([x], [encoder(x)]),
+      M.Model([x], [ex]),
       None,#m_slow_feat,
       [M.Model([x], [c]) for c in channels]
    )
@@ -239,14 +250,15 @@ frames2, *_ = TS.make_training_set(sig2, frame_size=frame_size, n_pairs=n_pairs,
 #trainer, model, model2, mode1, mode2, encoder, model_sf = make_model(frames[0])
 #factory = DenseFactory
 factory = ConvFactory
-model, encoder, model_sf, [mode1, mode2] = make_factor_model(frames[0], factory(frames[0], latent_sizes, use_batch_norm=False))
+model, encoder, model_sf, [mode1, mode2] = make_factor_model(
+   frames[0], factory(frames[0], latent_sizes, use_batch_norm=False), shared_encoder=False)
 #_, model, model2, mode1, mode2, encoder, encoder2 = make_model2(frames[0])
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
 
 model.compile(optimizer=keras.optimizers.Adam(lr=0.01, beta_1=0.9, beta_2=0.999, decay=0.0001), loss=loss_function)
 #model_sf.compile(optimizer=keras.optimizers.Adam(), loss=loss_function)
 model.summary()
-#plot_model(model, to_file='ssae.png', show_shapes=True)
+plot_model(model, to_file='ssae.png', show_shapes=True)
 
 #x = F.input_like(frames[0])
 #cheater = M.Model([x], [mode1(x), mode2(x)])
