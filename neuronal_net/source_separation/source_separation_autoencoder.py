@@ -142,6 +142,11 @@ class ConvFactory:
              )
 
 
+def rotate(xs):
+   yield xs[-1]
+   for x in xs[:-1]:
+      yield x
+
 
 def make_factor_model(example_frame, factory, shared_encoder=True):
 
@@ -177,8 +182,8 @@ def make_factor_model(example_frame, factory, shared_encoder=True):
    #m_slow_feat = M.Model([x, x_2], [y])
    #m_slow_feat.add_loss(1*K.mean(K.square( ex_2[:,0:2] - ex[:,0:2] + ex_2[:,4:6] - ex[:,4:6] )))
 
-   # m.add_loss(1*K.mean(K.square((encoder >> slice1 >> decoder1)(y2))))
-   # m.add_loss(1*K.mean(K.square((encoder >> slice2 >> decoder2)(y1))))
+   # for d,c in zip(decoders, rotate(channels)):
+   #    m.add_loss(1*K.mean(K.square((encoder >> d)(c))))
 
    return (
       m,
@@ -251,7 +256,7 @@ frames2, *_ = TS.make_training_set(sig2, frame_size=frame_size, n_pairs=n_pairs,
 #factory = DenseFactory
 factory = ConvFactory
 model, encoder, model_sf, [mode1, mode2] = make_factor_model(
-   frames[0], factory(frames[0], latent_sizes, use_batch_norm=False), shared_encoder=False)
+   frames[0], factory(frames[0], latent_sizes, use_batch_norm=False), shared_encoder=True)
 #_, model, model2, mode1, mode2, encoder, encoder2 = make_model2(frames[0])
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
 
