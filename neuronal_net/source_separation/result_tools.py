@@ -48,11 +48,13 @@ def pred_error(model, frames, gen, n):
 
 class LossRecorder(keras.callbacks.Callback):
 
-   def __init__(self, **kargs):
+   def __init__(self, get_pred_error, **kargs):
       super(LossRecorder, self).__init__(**kargs)
       self.losses = []
       self.grads = []
       self.pred_errors = []
+      #self.mutual_information = []
+      self.get_pred_error = get_pred_error
 
    def _current_weights(self):
       return [l.get_weights() for l in self.model.layers if len(l.get_weights()) > 0]
@@ -68,11 +70,17 @@ class LossRecorder(keras.callbacks.Callback):
 
    def on_epoch_end(self, epoch, logs={}):
       self.pred_errors.append(
-      [   pred_error(mode1, frames, sig1, 2048)
-      ,   pred_error(mode1, frames, sig2, 2048)
-      ,   pred_error(mode2, frames, sig2, 2048)
-      ,   pred_error(mode2, frames, sig1, 2048)
+      [   self.get_pred_error(0, 0)
+      ,   self.get_pred_error(0, 1)
+      ,   self.get_pred_error(1, 1)
+      ,   self.get_pred_error(1, 0)
       ])
+      #self.mutual_information.append(
+      #   mutual_information(
+      #      build_prediction(mode1, frames, 2000),
+      #      build_prediction(mode2, frames, 2000)
+      #   )
+      #)
 
 
 # --------------------------------------------------------------------------------------------------
@@ -149,6 +157,7 @@ def training_summary(model, mode1, mode2, encoder, gen, sig1, sig2, frames, loss
    pes = loss_recorder.pred_errors
    epochs = np.arange(len(pes))
    ax.semilogy(epochs, pes, 'k')
+   #ax.semilogy(epochs, loss_recorder.mutual_information, 'b')
    plt.title('reconstruction error')
 
    plot_joint_dist(frames, encoder, fig, [0.5,0.05,0.95,0.5])
