@@ -39,59 +39,6 @@ noise_stddev = 0.05
 
 
 
-
-def rotate(xs):
-   yield xs[-1]
-   for x in xs[:-1]:
-      yield x
-
-
-def make_factor_model(example_frame, factory, shared_encoder=True):
-
-   x = F.input_like(example_frame)
-   #x_2 = F.input_like(example_frame)    # The Variational layer causes conflicts if this is in and not connected
-   eta = lambda: F.noise(noise_stddev)
-   eta2 = lambda: F.noise(0.1)
-
-
-   if shared_encoder:
-      encoder = factory.make_encoder()
-      cum_latent_sizes = np.concatenate([[0], np.cumsum(latent_sizes)])
-      decoders = [
-         fun._ >> XL.Slice[:, cum_latent_sizes[n]:cum_latent_sizes[n+1]] >> factory.make_decoder()
-         for n in range(len(factory.latent_sizes))
-      ]
-      ex = (eta() >> encoder)(x)
-      channels = [dec(ex) for dec in decoders]
-   else:
-      encoders = [factory.make_encoder(z) for z in factory.latent_sizes]
-      decoders = [factory.make_decoder() for n in range(len(factory.latent_sizes))]
-      channels = [(eta() >> enc >> dec)(x) for enc, dec in zip(encoders, decoders)]
-      ex = L.concatenate([e(x) for e in encoders])
-
-   #channels = [(dec >> eta2() >> encoder >> dec)(ex) for dec in decoders]
-
-   y = L.add(channels)
-
-   m = M.Model([x], [y])
-   #m.add_loss(10*K.mean( K.square(ex[:,0:2])) * K.mean(K.square(ex[:,2:])))
-
-   #ex_2 = (eta() >> encoder)(x_2)
-   #m_slow_feat = M.Model([x, x_2], [y])
-   #m_slow_feat.add_loss(1*K.mean(K.square( ex_2[:,0:2] - ex[:,0:2] + ex_2[:,4:6] - ex[:,4:6] )))
-
-   # for d,c in zip(decoders, rotate(channels)):
-   #    m.add_loss(1*K.mean(K.square((encoder >> d)(c))))
-
-   return (
-      m,
-      M.Model([x], [ex]),
-      None,#m_slow_feat,
-      [M.Model([x], [c]) for c in channels]
-   )
-
-
-
 class LossRecorder(keras.callbacks.Callback):
 
    def __init__(self, **kargs):
@@ -150,12 +97,12 @@ frames2, *_ = TS.make_training_set(sig2, frame_size=frame_size, n_pairs=n_pairs,
 
 
 
-#trainer, model, model2, mode1, mode2, encoder, model_sf = make_model(frames[0])
 #factory = DenseFactory
 factory = ConvFactory
 model, encoder, model_sf, [mode1, mode2] = make_factor_model(
-   frames[0], factory(frames[0], latent_sizes, use_batch_norm=False, scale_factor=factor), shared_encoder=True)
-#_, model, model2, mode1, mode2, encoder, encoder2 = make_model2(frames[0])
+   frames[0], factory(frames[0], latent_sizes, use_batch_norm=False, scale_factor=factor),
+   noise_stddev=noise_stddev, shared_encoder=True
+)
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
 
 model.compile(optimizer=keras.optimizers.Adam(lr=0.01, beta_1=0.9, beta_2=0.999, decay=0.0001), loss=loss_function)

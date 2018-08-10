@@ -15,6 +15,12 @@ from keras_tools import test_signals as TS
 from keras_tools.upsampling import UpSampling1DZeros
 
 
+
+# --------------------------------------------------------------------------------------------------
+# ENCODER/DECODER FACTORIES
+# --------------------------------------------------------------------------------------------------
+
+
 activation = fun.bind(XL.tanhx, alpha=0.2)
 act = lambda: L.Activation(activation)
 #act = lambda: L.LeakyReLU(alpha=0.2)  # does work too, but ugly latent space
@@ -99,3 +105,58 @@ class ConvFactory:
              >> F.flatten()
              )
 
+
+# --------------------------------------------------------------------------------------------------
+# FACTOR MODEL -- actual source separator that factors the state/latent space
+# --------------------------------------------------------------------------------------------------
+
+
+def rotate(xs):
+   yield xs[-1]
+   for x in xs[:-1]:
+      yield x
+
+
+def make_factor_model(example_frame, factory, noise_stddev, shared_encoder=True):
+
+   x = F.input_like(example_frame)
+   #x_2 = F.input_like(example_frame)    # The Variational layer causes conflicts if this is in and not connected
+   eta = lambda: F.noise(noise_stddev)
+   eta2 = lambda: F.noise(0.1)
+
+
+   if shared_encoder:
+      encoder = factory.make_encoder()
+      cum_latent_sizes = np.concatenate([[0], np.cumsum(factory.latent_sizes)])
+      decoders = [
+         fun._ >> XL.Slice[:, cum_latent_sizes[n]:cum_latent_sizes[n+1]] >> factory.make_decoder()
+         for n in range(len(factory.latent_sizes))
+      ]
+      ex = (eta() >> encoder)(x)
+      channels = [dec(ex) for dec in decoders]
+   else:
+      encoders = [factory.make_encoder(z) for z in factory.latent_sizes]
+      decoders = [factory.make_decoder() for n in range(len(factory.latent_sizes))]
+      channels = [(eta() >> enc >> dec)(x) for enc, dec in zip(encoders, decoders)]
+      ex = L.concatenate([e(x) for e in encoders])
+
+   #channels = [(dec >> eta2() >> encoder >> dec)(ex) for dec in decoders]
+
+   y = L.add(channels)
+
+   m = M.Model([x], [y])
+   #m.add_loss(10*K.mean( K.square(ex[:,0:2])) * K.mean(K.square(ex[:,2:])))
+
+   #ex_2 = (eta() >> encoder)(x_2)
+   #m_slow_feat = M.Model([x, x_2], [y])
+   #m_slow_feat.add_loss(1*K.mean(K.square( ex_2[:,0:2] - ex[:,0:2] + ex_2[:,4:6] - ex[:,4:6] )))
+
+   # for d,c in zip(decoders, rotate(channels)):
+   #    m.add_loss(1*K.mean(K.square((encoder >> d)(c))))
+
+   return (
+      m,
+      M.Model([x], [ex]),
+      None,#m_slow_feat,
+      [M.Model([x], [c]) for c in channels]
+   )
