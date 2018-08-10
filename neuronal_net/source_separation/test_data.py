@@ -31,11 +31,14 @@ class LazyGenerator():
 
 
 
-sin0 = LazyGenerator(lambda n: np.sin(0.03*np.arange(n)))
-sin1 = LazyGenerator(lambda n: np.sin(0.05*np.arange(n)))
-sin2 = LazyGenerator(lambda n: np.sin(np.pi*0.05*np.arange(n)))
-sin3 = LazyGenerator(lambda n: np.sin(0.021231*np.arange(n)))
-sin4 = LazyGenerator(lambda n: np.sin(np.pi*0.3*np.arange(n)))
+def make_sin_gen(freq):
+   return LazyGenerator(lambda n: np.sin(freq * np.arange(n)))
+
+sin0 = make_sin_gen(0.03)
+sin1 = make_sin_gen(0.05)
+sin2 = make_sin_gen(np.pi*0.05)
+sin3 = make_sin_gen(0.021231)
+sin4 = make_sin_gen(np.pi*0.3)
 exp1 = LazyGenerator(lambda n: np.exp(-0.001*np.arange(n)))
 sin1exp = sin1 * exp1
 sin2am = sin2 * (1 + 0.4*sin3)
