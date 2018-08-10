@@ -52,10 +52,10 @@ class DenseFactory:
 
 class ConvFactory:
 
-   def __init__(self, example_frame, latent_sizes, use_batch_norm=False, scale_factor=1):
+   def __init__(self, example_frame, latent_sizes, kernel_size=5, use_batch_norm=False, scale_factor=1):
       self.input_size = example_frame.shape[-1]
       self.latent_sizes = latent_sizes
-      self.kernel_size = 5
+      self.kernel_size = kernel_size
       #self.features = [4, 8, 8, 16, 32, 32, 32]
       self.features = [4, 4, 8, 8, 16, 16, 16]
       #self.features = [2, 4, 4, 4, 8, 8, 8]
