@@ -25,6 +25,7 @@
 
 from imports import *
 from coder_factories import *
+from keras_tools import test_signals as TS
 
 factor = 1
 frame_size = factor*128
