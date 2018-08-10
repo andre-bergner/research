@@ -42,12 +42,11 @@ class DenseFactory:
              #>> XL.VariationalEncoder(latent_size, self.input_size, beta=0.1)
              )
 
-   def make_decoder(self, n):
-      return (  fun._ >> XL.Slice[:, self.latent_sizes2[n]:self.latent_sizes2[n+1]]
-              >> F.dense([self.input_size//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
-              >> F.dense([self.input_size//2]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
-              >> F.dense([self.input_size])
-              )
+   def make_decoder(self):
+      return (  F.dense([self.input_size//4]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+             >> F.dense([self.input_size//2]) >> act() #>> F.batch_norm() # >> F.dropout(0.2)
+             >> F.dense([self.input_size])
+             )
 
 
 
