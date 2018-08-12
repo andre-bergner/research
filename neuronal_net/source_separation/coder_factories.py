@@ -77,13 +77,13 @@ class ConvFactory:
       features = self.features
       ks = self.kernel_size
       return (  F.append_dimension()
-             >> F.conv1d(features[0], ks, 2)  >> act() >> self.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[1], ks, 2)  >> act() >> self.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[2], ks, 2)  >> act() >> self.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[3], ks, 2) >> act()  >> self.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[4], ks, 2) >> act()  >> self.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[5], ks, 2) >> act()  >> self.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[6], ks, 2) >> act()  >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[0], ks, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[1], ks, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[2], ks, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[3], ks, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[4], ks, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[5], ks, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[6], ks, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
              >> F.flatten()
              >> F.dense([latent_size]) >> act()
              #>> XL.VariationalEncoder(latent_size, self.input_size, beta=0.01, no_sampling=True)
@@ -93,7 +93,7 @@ class ConvFactory:
       up = self.up1d
       features = self.features
       ks = self.kernel_size
-      return (  F.dense([self.scale_factor, features[6]]) >> act()
+      return (  F.dense([self.scale_factor, features[6]]) >> act() >> self.batch_norm()
              >> up() >> F.conv1d(features[5], ks) >> act() >> self.batch_norm()
              >> up() >> F.conv1d(features[4], ks) >> act() >> self.batch_norm()
              >> up() >> F.conv1d(features[3], ks) >> act() >> self.batch_norm()
@@ -104,6 +104,57 @@ class ConvFactory:
              >> F.flatten()
              )
 
+
+
+class DilatedFactory:
+
+   def __init__(self, example_frame, latent_sizes, kernel_size=5, use_batch_norm=False, scale_factor=1):
+      self.input_size = example_frame.shape[-1]
+      self.latent_sizes = latent_sizes
+      self.kernel_size = kernel_size
+      self.features = 8
+      if use_batch_norm:
+         self.batch_norm = F.batch_norm
+      else:
+         self.batch_norm = lambda: lambda x: x
+      self.scale_factor = scale_factor
+
+   @staticmethod
+   def up1d(factor=2):
+      return fun._ >> L.UpSampling1D(factor)
+
+   def make_encoder(self, latent_size=None):
+      if latent_size == None: latent_size = sum(self.latent_sizes)
+      features = self.features
+      ks = self.kernel_size
+      return (  F.append_dimension()
+             >> F.conv1d(features, ks, dilate=1) >> act() >> self.batch_norm()
+             >> F.conv1d(features, ks, dilate=2) >> act() >> self.batch_norm()
+             >> F.conv1d(features, ks, dilate=4) >> act() >> self.batch_norm()
+             >> F.conv1d(features, ks, dilate=8) >> act() >> self.batch_norm()
+             >> F.conv1d(features, ks, dilate=16) >> act() >> self.batch_norm()
+             >> F.conv1d(features, ks, dilate=32) >> act() >> self.batch_norm()
+             >> F.conv1d(features, ks, dilate=64) >> act() >> self.batch_norm()
+             >> F.conv1d(latent_size, 128, padding='valid') >> act() >> self.batch_norm()
+             >> F.flatten()
+             )
+
+   def make_decoder(self):
+      up = self.up1d
+      features = self.features
+      ks = self.kernel_size
+      return (  F.append_dimension(axis=-2) >> 
+             #fun._ >> L.ZeroPadding1D([0, self.input_size-1])
+             >> F.conv1d(features, 1, dilate=64) >> act() >> self.batch_norm()
+             >> F.conv1d(features, ks, dilate=64) >> act() >> self.batch_norm()
+             >> F.conv1d(features, ks, dilate=32) >> act() >> self.batch_norm()
+             >> F.conv1d(features, ks, dilate=16) >> act() >> self.batch_norm()
+             >> F.conv1d(features, ks, dilate=8) >> act() >> self.batch_norm()
+             >> F.conv1d(features, ks, dilate=4) >> act() >> self.batch_norm()
+             >> F.conv1d(features, ks, dilate=2) >> act() >> self.batch_norm()
+             >> F.conv1d(1, ks) >> act() >> self.batch_norm()
+             >> F.flatten()
+             )
 
 # --------------------------------------------------------------------------------------------------
 # FACTOR MODEL -- actual source separator that factors the state/latent space
@@ -129,6 +180,7 @@ def make_factor_model(example_frame, factory, noise_stddev, shared_encoder=True)
       cum_latent_sizes = np.concatenate([[0], np.cumsum(factory.latent_sizes)])
       decoders = [
          fun._ >> XL.Slice[:, cum_latent_sizes[n]:cum_latent_sizes[n+1]] >> factory.make_decoder()
+         # for DILATED: fun._ >> XL.Slice[:,:, cum_latent_sizes[n]:cum_latent_sizes[n+1]] >> factory.make_decoder()
          for n in range(len(factory.latent_sizes))
       ]
       ex = (eta() >> encoder)(x)
@@ -156,6 +208,7 @@ def make_factor_model(example_frame, factory, noise_stddev, shared_encoder=True)
    return (
       m,
       M.Model([x], [ex]),
+      #M.Model([x], [(encoder >> F.flatten())(x)]),
       None,#m_slow_feat,
       [M.Model([x], [c]) for c in channels]
    )

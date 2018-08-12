@@ -25,24 +25,25 @@ from keras_tools import test_signals as TS
 factor = 1
 frame_size = factor*128
 n_pairs = 20000
-n_latent1 = 3
-n_latent2 = 3
+n_latent1 = 4
+n_latent2 = 4
 latent_sizes = [n_latent1, n_latent2]
 n_epochs = 10
-noise_stddev = 0.05
+noise_stddev = 0.1
 
 
 
 #sig1, sig2 = two_sin
 #sig1, sig2 = kicks_sin1
-#sig1, sig2 = lorenz_fm
+sig1, sig2 = lorenz_fm
+#sig1, sig2 = lorenz, 0.5*lorenz2
 #sig1, sig2 = fm_twins
 #sig1, sig2 = tanhsin1, sin2
 #sig1, sig2 = tanhsin1, sin4
 #sig1, sig2 = cello, clarinet
 #sig1, sig2 = cello_dis3, choir_e4
 #sig1, sig2 = fm_soft3, 0.5*fm_soft3inv
-sig1, sig2 = make_sin_gen(np.pi*0.05) + 0.4*make_sin_gen(3*0.05), 0.7*make_sin_gen(0.3432)
+#sig1, sig2 = make_sin_gen(np.pi*0.05) + 0.4*make_sin_gen(3*0.05), 0.7*make_sin_gen(0.3432)
 
 sig_gen = sig1 + sig2
 sig_gen_s = lambda n: sig1(n) + sig2(n+100)[100:]
@@ -55,6 +56,7 @@ frames2, *_ = TS.make_training_set(sig2, frame_size=frame_size, n_pairs=n_pairs)
 
 #factory = DenseFactory
 factory = ConvFactory
+#factory = DilatedFactory
 model, encoder, model_sf, [mode1, mode2] = make_factor_model(
    frames[0], factory(frames[0], latent_sizes, use_batch_norm=False, scale_factor=factor),
    noise_stddev=noise_stddev, shared_encoder=True
@@ -98,3 +100,8 @@ from sklearn.decomposition import FastICA, PCA
 def ica(x, n_components, max_iter=1000):
    ica_trafo = FastICA(n_components=n_components, max_iter=max_iter)
    return ica_trafo.fit_transform(x)
+
+# model_, *_, modes = make_factor_model(
+#    sig_gen(2000), DilatedFactory(sig_gen(2000), latent_sizes, use_batch_norm=False, scale_factor=factor),
+#    noise_stddev=noise_stddev
+# )
