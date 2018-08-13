@@ -99,14 +99,20 @@ class AppendDimension(L.Layer):
      ND tensor with shape `(batch, dim1, ..., dimN, 1)
    """
 
-   def __init__(self, *args, **kwargs):
+   def __init__(self, axis=-1, *args, **kwargs):
       super(AppendDimension, self).__init__(*args, **kwargs)
+      self.axis = axis
 
    def compute_output_shape(self, input_shape):
-      return (*input_shape, 1)
+      n = self.axis
+      if n < 0:
+         n = self.axis % len(input_shape) + 1
+      input_shape_list = list(input_shape)
+      input_shape_list.insert(n, 1)
+      return tuple(input_shape_list)
 
    def call(self, inputs, training=None):
-      return K.expand_dims(inputs)
+      return K.expand_dims(inputs, self.axis)
 
 
 
