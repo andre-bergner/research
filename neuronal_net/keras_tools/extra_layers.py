@@ -115,6 +115,61 @@ class AppendDimension(L.Layer):
       return K.expand_dims(inputs, self.axis)
 
 
+class DecayingGaussianNoise(L.GaussianNoise):
+   """Apply additive zero-centered Gaussian noise.
+
+   This is useful to mitigate overfitting
+   (you could see it as a form of random data augmentation).
+   Gaussian Noise (GS) is a natural choice as corruption process
+   for real valued inputs.
+
+   As it is a regularization layer, it is only active at training time.
+
+   This is an extension to GaussianNoise that allows the noise to decay
+   over training time. For some applications a stronger noise in the early
+   training phase is better but can be reduced over time.
+
+   # Arguments
+     stddev: float, standard deviation of the noise distribution.
+     decay: decay factor of stddev - after each training step stddev is multiplied by this
+     final_stddev: final value for stddev
+
+   # Input shape
+     Arbitrary. Use the keyword argument `input_shape`
+     (tuple of integers, does not include the samples axis)
+     when using this layer as the first layer in a model.
+
+   # Output shape
+     Same shape as input.
+   """
+
+   def __init__(self, stddev, decay=0, final_stddev=0, **kwargs):
+      super(DecayingGaussianNoise, self).__init__(stddev, **kwargs)
+      self.decay = decay
+      self.final_stddev = final_stddev
+
+   def build(self, input_shape):
+      self.factor = K.variable(1, name="factor")
+      super(DecayingGaussianNoise, self).build(input_shape)
+
+   def call(self, inputs, training=None):
+      self.add_update([(
+         self.factor,   # value to be updated
+         self.factor + self.decay * (self.final_stddev - self.factor)   # update expression
+      )])
+      #self.add_update([(self.factor, self.decay * self.factor)], inputs)  ???
+      def noised():
+         return inputs + self.factor * K.random_normal(
+            shape=K.shape(inputs),  mean=0., stddev=self.stddev)
+      return K.in_train_phase(noised, inputs, training=training)
+
+   def get_config(self):
+      config = {'decay': self.decay}
+      base_config = super(DecayingGaussianNoise, self).get_config()
+      return dict(list(base_config.items()) + list(config.items()))
+
+
+
 
 class VariationalEncoder(L.Layer):
 

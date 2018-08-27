@@ -1,6 +1,3 @@
-import os
-os.environ['KERAS_BACKEND'] = 'theano'
-
 from functools import reduce
 
 import keras.layers as L
@@ -26,7 +23,7 @@ def dense(out_shape, *args, **kwargs):
       units = reduce(lambda x,y: x*y, out_shape)
       return _ >> L.Dense(units=units, *args, **kwargs) >> L.Reshape(out_shape)
 
-def conv1d(num_feat, kernel_size, stride=1, activation = None, use_bias=True, padding='same', *args, **kwargs):
+def conv1d(num_feat, kernel_size, stride=1, dilate=1, activation=None, use_bias=True, padding='same', *args, **kwargs):
    return fun._ >> L.Conv1D(
       num_feat,
       kernel_size,
@@ -34,6 +31,7 @@ def conv1d(num_feat, kernel_size, stride=1, activation = None, use_bias=True, pa
       padding = padding,
       activation = activation,
       use_bias = use_bias,
+      dilation_rate = dilate,
       *args,
       **kwargs
    )
@@ -77,8 +75,8 @@ def reshape(out_shape):
 def flatten(*args, **kwargs):
    return fun._ >> L.Flatten(*args, **kwargs)
 
-def append_dimension():
-   return fun._ >> XL.AppendDimension()
+def append_dimension(*args, **kwargs):
+   return fun._ >> XL.AppendDimension(*args, **kwargs)
 
 def crop1d(*args, **kwargs):
    return fun._ >> L.Cropping1D(*args, **kwargs)
@@ -90,11 +88,11 @@ def batch_norm(*args, **kwargs):
    return fun._ >> L.BatchNormalization(*args, **kwargs)
 
 def noise(*args, **kwargs):
-   return fun._ >> L.GaussianNoise(*args, **kwargs)
+   return fun._ >> XL.DecayingGaussianNoise(*args, **kwargs)
 
 def input_like(x):
    return L.Input(shape=x.shape)
 
 def noisy_input_like(x, stddev):
-   return L.GaussianNoise(stddev, input_shape=x.shape)
+   return XL.DecayingGaussianNoise(stddev, input_shape=x.shape)
 
