@@ -143,7 +143,7 @@ class DilatedFactory:
       up = self.up1d
       features = self.features
       ks = self.kernel_size
-      return (  F.append_dimension(axis=-2) >> 
+      return (  F.append_dimension(axis=-2)
              #fun._ >> L.ZeroPadding1D([0, self.input_size-1])
              >> F.conv1d(features, 1, dilate=64) >> act() >> self.batch_norm()
              >> F.conv1d(features, ks, dilate=64) >> act() >> self.batch_norm()
@@ -167,12 +167,12 @@ def rotate(xs):
       yield x
 
 
-def make_factor_model(example_frame, factory, noise_stddev, shared_encoder=True):
+def make_factor_model(example_frame, factory, noise_stddev, noise_decay=0, shared_encoder=True):
 
    x = F.input_like(example_frame)
    #x_2 = F.input_like(example_frame)    # The Variational layer causes conflicts if this is in and not connected
-   eta = lambda: F.noise(noise_stddev)
-   eta2 = lambda: F.noise(0.1)
+   eta = lambda: F.noise(noise_stddev, decay=noise_decay)
+   #eta2 = lambda: F.noise(0.1)
 
 
    if shared_encoder:
