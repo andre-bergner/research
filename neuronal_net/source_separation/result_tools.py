@@ -90,7 +90,7 @@ class LossRecorder(keras.callbacks.Callback):
 def spectrogram(signal, N=256, overlap=0.25):
    hop = int(overlap * N)
    def cos_win(x):
-      return x * (0.5 - 0.5*np.cos(np.linspace(0,2*pi,len(x))))
+      return x * (0.5 - 0.5*np.cos(np.linspace(0,2*np.pi,len(x))))
    return np.array([ np.abs(np.fft.fft(cos_win(win))[:N//2]) for win in windowed(signal, N, hop) ])
 
 def spec(signal, N=256, overlap=0.25):
