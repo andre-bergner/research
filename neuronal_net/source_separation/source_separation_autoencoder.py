@@ -22,21 +22,23 @@ from imports import *
 from coder_factories import *
 from keras_tools import test_signals as TS
 
-factor = 1
+factor = 2
 frame_size = factor*128
-n_pairs = 20000
+n_pairs = 40000
 n_latent1 = 4
 n_latent2 = 4
 latent_sizes = [n_latent1, n_latent2]
 n_epochs = 10
-noise_stddev = 0.1
+noise_stddev = 2.0
+noise_decay = 0.002
 
 
 
 #sig1, sig2 = two_sin
 #sig1, sig2 = kicks_sin1
-sig1, sig2 = lorenz_fm
+#sig1, sig2 = lorenz_fm
 #sig1, sig2 = lorenz, 0.5*lorenz2
+sig1, sig2 = 0.3*lorenz, 0.15*fm_strong0
 #sig1, sig2 = fm_twins
 #sig1, sig2 = tanhsin1, sin2
 #sig1, sig2 = tanhsin1, sin4
@@ -59,7 +61,7 @@ factory = ConvFactory
 #factory = DilatedFactory
 model, encoder, model_sf, [mode1, mode2] = make_factor_model(
    frames[0], factory(frames[0], latent_sizes, use_batch_norm=False, scale_factor=factor),
-   noise_stddev=noise_stddev, shared_encoder=True
+   noise_stddev=noise_stddev, noise_decay=noise_decay, shared_encoder=True
 )
 loss_function = lambda y_true, y_pred: keras.losses.mean_squared_error(y_true, y_pred) #+ 0.001*K.sum(dzdx*dzdx)
 
