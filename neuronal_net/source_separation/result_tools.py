@@ -32,7 +32,7 @@ def all_predictions(model, frames):
    N = pred.shape[-1]
    return np.array([pred[N-n:-n-1,n] for n in range(N)]).T
 
-def build_prediction(model, frames, num=2000):
+def build_prediction(model, frames, num=None):
    pred_frames = model.predict(frames[:num])
    frame_size = len(frames[0])
    times = [np.arange(n, n+frame_size) for n in np.arange(len(pred_frames))]
