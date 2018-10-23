@@ -7,7 +7,7 @@ from pylab import *
 
 n_epochs        = 3
 mini_batch_size = 20
-eta             = np.float32(0.1)
+eta             = th.shared(value=np.float32(0.1))
 
 
 def farray(a):
@@ -38,10 +38,10 @@ net_input = T.fmatrix()
 net_expected = T.fmatrix()
 
 l0 = net_input
-W1 = T.fmatrix()
-b1 = T.fvector()
-W2 = T.fmatrix()
-b2 = T.fvector()
+W1 = th.shared(farray(np.random.randn(784,30)))
+b1 = th.shared(farray(np.random.randn(30,)))
+W2 = th.shared(farray(np.random.randn(30,10)))
+b2 = th.shared(farray(np.random.randn(10,)))
 l1 = T.nnet.sigmoid(T.dot(l0, W1) + b1)
 l2 = T.nnet.sigmoid(T.dot(l1, W2) + b2)
 net_output = l2
@@ -49,20 +49,16 @@ net_output = l2
 coeffs = [W1, b1, W2, b2]
 
 net_with_loss = ((net_expected - net_output)**2).sum()
-#net_with_loss = -(net_expected*T.log(net_output) + (1.-net_expected)*T.log(1.-net_output)).sum()
+#net_with_loss = -(net_expected*th.tensor.log(net_output) + (1.-net_expected)*th.tensor.log(1.-net_output)).sum()
 net_with_loss_grad = th.grad(net_with_loss, coeffs)
 
-net_f = th.function([net_input, W1, b1, W2, b2], net_output)
+net_f = th.function([net_input], net_output)
 net_with_loss_grad_f = th.function(
-   [net_input, net_expected, *coeffs],
-   [*net_with_loss_grad, net_with_loss]
+   [net_input, net_expected],
+   [*net_with_loss_grad, net_with_loss],
+   updates=[(c, c-eta*d) for (c,d) in zip(coeffs, net_with_loss_grad)]
 );
 
-
-cW1 = farray(np.random.randn(784,30))
-cb1 = farray(np.random.randn(30,))
-cW2 = farray(np.random.randn(30,10))
-cb2 = farray(np.random.randn(10,))
 
 # load data
 
@@ -71,21 +67,18 @@ training_data = reshape_mnist_data(training_data)
 mnist_valid = reshape_mnist_data(mnist_valid)
 test_data = reshape_mnist_data(test_data)
 
-vcoeffs = [cW1, cb1, cW2, cb2]
-
 def minimize_loss(input, expected, eta=eta):
-   *grad, loss = net_with_loss_grad_f(input, expected, *vcoeffs)
-   for c,d in zip(vcoeffs, grad):
-      c -= eta*d
+   *grad, loss = net_with_loss_grad_f(input, expected)
    return loss
 
 with timer.Timer() as t:
    losses = sgd.stochastic_gradient_descent2(minimize_loss, training_data, n_epochs, mini_batch_size)
 
 correct_results = [
-   np.argmax(num) == np.argmax(net_f(np.expand_dims(img, axis=0),*vcoeffs))
+   np.argmax(num) == np.argmax(net_f(np.expand_dims(img, axis=0)))
    for img, num in zip(mnist_valid[0], mnist_valid[1])
 ]
 print("correct results: {0:.2f} %".format( 100. * float(np.count_nonzero(correct_results)) / len(correct_results) ) )
 
 plot(losses)
+
