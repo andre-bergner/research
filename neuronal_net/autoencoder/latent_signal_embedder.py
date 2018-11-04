@@ -36,13 +36,26 @@ act = lambda: L.Activation(activation)
 x = L.Input([FRAME_SIZE])
 # enc = F.dense([FRAME_SIZE//4]) >> act() >> F.dense([FRAME_SIZE//8]) >> act() >> F.dense([LATENT_DIM]) >> act()
 # dec = F.dense([FRAME_SIZE//8]) >> act() >> F.dense([FRAME_SIZE//4]) >> act() >> F.dense([FRAME_SIZE])
-enc = F.noise(0.1) >> F.dense([FRAME_SIZE//8]) >> act() >> F.dense([LATENT_DIM]) >> act()
+#enc = F.noise(0.01) >> F.dense([FRAME_SIZE//8]) >> act() >> F.dense([LATENT_DIM]) >> act()
+enc = F.dense([FRAME_SIZE//8]) >> act() >> F.dense([LATENT_DIM]) >> act()
 dec = F.dense([FRAME_SIZE//8]) >> act() >> F.dense([FRAME_SIZE])
 
 q = L.Input([1])
 z = L.concatenate([enc(x), q])
 y = dec(z)
 m = Model([x,q],y)
+
+
+eta = 0.001
+weights = [q, *m.trainable_weights]
+loss = K.sum(K.square(y - x))
+grad = K.gradients(loss, weights)
+# grad_f = K.function(
+#     m.input,
+#     [*grad, loss],
+#     updates=[(c, c-eta*d) for (c,d) in zip(m.trainable_weights, grad[1:])],
+# )
+grad_f = K.function( [x, q], [*grad, loss] )
 
 
 
@@ -63,22 +76,19 @@ frames = np.array([w for w in windowed(X, FRAME_SIZE, 1)])
 Q = np.zeros([len(frames),1])  # the latent code that should be learned
 
 
-m.compile('sgd', 'mse')
-
-eta = 0.001
-weights = m.trainable_weights
-loss = K.sum(K.square(m.output - m.input[0]))
-grad = K.gradients(loss, [m.input[1], *weights])
-grad_f = K.function(
-    m.input,
-    [*grad, loss],
-    updates=[(c, c-eta*d) for (c,d) in zip(weights, grad[1:])]
-)
 
 def minimize_loss(input, ext_weight, eta=eta):
    *grad, loss = grad_f([input, ext_weight])
-   ext_weight -= eta * grad[0]
+   # --- using updates -------------------------
+   # ext_weight -= eta * grad[0]
+   # return loss
+   # --- computing all weights directly --------
+   ws = [w.get_value() for w in m.trainable_weights]
+   for c,d in zip([ext_weight, *ws], grad):
+      c -= eta*d
+   for w, w_ in zip(m.trainable_weights, ws): w.set_value(w_)
    return loss
+
 
 def stochastic_gradient_descent(minimizer, training_data, n_epochs=3, mini_batch_size=32):
 
@@ -108,8 +118,9 @@ def stochastic_gradient_descent(minimizer, training_data, n_epochs=3, mini_batch
 
    return losses
 
-
+print(m.get_weights()[0])
 losses = stochastic_gradient_descent(minimize_loss, [frames, Q], n_epochs=40)
+print(m.get_weights()[0])
 
 figure()
 plot(losses)
