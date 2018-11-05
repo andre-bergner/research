@@ -33,29 +33,44 @@ LATENT_DIM = 1
 activation = fun.bind(XL.tanhx, alpha=0.2)
 act = lambda: L.Activation(activation)
 
-x = L.Input([FRAME_SIZE])
 # enc = F.dense([FRAME_SIZE//4]) >> act() >> F.dense([FRAME_SIZE//8]) >> act() >> F.dense([LATENT_DIM]) >> act()
 # dec = F.dense([FRAME_SIZE//8]) >> act() >> F.dense([FRAME_SIZE//4]) >> act() >> F.dense([FRAME_SIZE])
 #enc = F.noise(0.01) >> F.dense([FRAME_SIZE//8]) >> act() >> F.dense([LATENT_DIM]) >> act()
 enc = F.dense([FRAME_SIZE//8]) >> act() >> F.dense([LATENT_DIM]) >> act()
 dec = F.dense([FRAME_SIZE//8]) >> act() >> F.dense([FRAME_SIZE])
 
+x = L.Input([FRAME_SIZE])
 q = L.Input([1])
 z = L.concatenate([enc(x), q])
 y = dec(z)
 m = Model([x,q],y)
+loss = K.mean(K.square(y - x))
+
+x2 = L.Input([FRAME_SIZE])
+q2 = L.Input([1])
+z2 = L.concatenate([enc(x2), q2])
+#y2 = dec(z2)
+#loss += K.mean(K.square(y2 - x2))
+
+slow_loss = 50*K.mean(K.square(q2 - q))
+slow_loss += K.abs(1 - K.mean(K.square(q)))
+slow_loss += K.abs(K.mean(q))
+loss += slow_loss
 
 
-eta = 0.001
-weights = [q, *m.trainable_weights]
-loss = K.sum(K.square(y - x))
+eta = 0.05
+weights = [q, q2, *m.trainable_weights]
+#weights = [q, *m.trainable_weights]
+
 grad = K.gradients(loss, weights)
 # grad_f = K.function(
 #     m.input,
 #     [*grad, loss],
 #     updates=[(c, c-eta*d) for (c,d) in zip(m.trainable_weights, grad[1:])],
 # )
-grad_f = K.function( [x, q], [*grad, loss] )
+grad_f = K.function( [x, q, x2, q2], [*grad, loss] )
+#grad_f = K.function( [x, q, q2], [*grad, loss] )
+#grad_f = K.function( [x, q], [*grad, loss] )
 
 
 
@@ -77,22 +92,25 @@ Q = np.zeros([len(frames),1])  # the latent code that should be learned
 
 
 
-def minimize_loss(input, ext_weight, eta=eta):
-   *grad, loss = grad_f([input, ext_weight])
+def minimize_loss(input, ext_weight, input2, ext_weight2, eta=eta):
+   *grad, loss = grad_f([input, ext_weight, input2, ext_weight2])
+   #*grad, loss = grad_f([input, ext_weight, ext_weight2])
+   #*grad, loss = grad_f([input, ext_weight])
    # --- using updates -------------------------
    # ext_weight -= eta * grad[0]
    # return loss
    # --- computing all weights directly --------
-   ws = [w.get_value() for w in m.trainable_weights]
-   for c,d in zip([ext_weight, *ws], grad):
+   ws = [K.get_value(w) for w in m.trainable_weights]
+   for c,d in zip([ext_weight, ext_weight2, *ws], grad):
+   #for c,d in zip([ext_weight, *ws], grad):
       c -= eta*d
-   for w, w_ in zip(m.trainable_weights, ws): w.set_value(w_)
+   for w, w_ in zip(m.trainable_weights, ws): K.set_value(w,w_)
    return loss
 
 
 def stochastic_gradient_descent(minimizer, training_data, n_epochs=3, mini_batch_size=32):
 
-   n_data = len(training_data[0])
+   n_data = len(training_data[0]) - 1
    n_batches = n_data//mini_batch_size
 
    losses = []
@@ -104,8 +122,10 @@ def stochastic_gradient_descent(minimizer, training_data, n_epochs=3, mini_batch
          idx = np.random.randint(0, n_data, mini_batch_size)
          input_batch = training_data[0][idx]
          exwgt_batch = training_data[1][idx]
+         input_batch2 = training_data[0][idx+1]
+         exwgt_batch2 = training_data[1][idx+1]
 
-         loss = minimizer(input_batch, exwgt_batch)
+         loss = minimizer(input_batch, exwgt_batch, input_batch2, exwgt_batch2)
 
          training_data[1][idx] = exwgt_batch    # copy back updated values
          
@@ -118,9 +138,7 @@ def stochastic_gradient_descent(minimizer, training_data, n_epochs=3, mini_batch
 
    return losses
 
-print(m.get_weights()[0])
-losses = stochastic_gradient_descent(minimize_loss, [frames, Q], n_epochs=40)
-print(m.get_weights()[0])
+losses = stochastic_gradient_descent(minimize_loss, [frames, Q], n_epochs=100)
 
 figure()
 plot(losses)
