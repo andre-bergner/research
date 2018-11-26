@@ -72,35 +72,77 @@ class ConvFactory:
       #return fun._ >> UpSampling1DZeros(factor)
       return fun._ >> L.UpSampling1D(factor)
 
+   def enc_residual_block(self, n_features_in, n_features_out):
+      def block_f(x):
+         #block = F.conv1d(n_features_out, self.kernel_size) >> DownSampling1D(2) >> act() >> self.batch_norm()
+         block = F.conv1d(n_features_out, self.kernel_size) >> act() >> F.conv1d(n_features_out, self.kernel_size, 2)
+         blockx = block(x)
+         if n_features_out != n_features_in:
+            skip_connection = F.flatten() >> F.dense(blockx._keras_shape[1:])
+         else:
+            skip_connection = DownSampling1D(2)
+         # if n_features_out < n_features_in:
+         #    skip_connection = K.stack
+         # elif n_features_out > n_features_in:
+         #    skip_connection = skip_connection[:,:,:n_features_out]
+         return L.add([blockx, skip_connection(x)])
+      return fun._ >> block_f >> act()
+
+   def enc_normal_block(self, n_features_in, n_features_out):
+      return F.conv1d(n_features_out, self.kernel_size, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
+
    def make_encoder(self, latent_size=None):
       if latent_size == None: latent_size = sum(self.latent_sizes)
       features = self.features
       ks = self.kernel_size
+      block = self.enc_normal_block
+      #block = self.enc_residual_block
       return (  F.append_dimension()
-             >> F.conv1d(features[0], ks, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[1], ks, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[2], ks, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[3], ks, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[4], ks, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[5], ks, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
-             >> F.conv1d(features[6], ks, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> block(1,           features[0])
+             >> block(features[0], features[1])
+             >> block(features[1], features[2])
+             >> block(features[2], features[3])
+             >> block(features[3], features[4])
+             >> block(features[4], features[5])
+             >> block(features[5], features[6])
+             #>> block(features[6], features[7])
              >> F.flatten()
              >> F.dense([latent_size]) >> act()
              #>> XL.VariationalEncoder(latent_size, self.input_size, beta=0.01, no_sampling=True)
              )
 
+
+   def dec_residual_block(self, n_features_in, n_features_out):
+      def block_f(x):
+         up = self.up1d
+         block = up(2) >> F.conv1d(n_features_out, self.kernel_size) >> act() >> F.conv1d(n_features_out, self.kernel_size)
+         blockx = block(x)
+         if n_features_out != n_features_in:
+            skip_connection = F.flatten() >> F.dense(blockx._keras_shape[1:])
+         else:
+            skip_connection = up(2)
+         return L.add([blockx, skip_connection(x)])
+      #return self.up1d() >> block_f >> act()
+      return fun._ >> block_f >> act()
+
+   def dec_normal_block(self, _, n_features_out):
+      return self.up1d() >> F.conv1d(n_features_out, self.kernel_size) >> act() >> self.batch_norm() # >> F.dropout(0.5)
+
+
    def make_decoder(self):
       up = self.up1d
       features = self.features
-      ks = self.kernel_size
-      return (  F.dense([self.scale_factor, features[6]]) >> act() >> self.batch_norm()
-             >> up() >> F.conv1d(features[5], ks) >> act() >> self.batch_norm()
-             >> up() >> F.conv1d(features[4], ks) >> act() >> self.batch_norm()
-             >> up() >> F.conv1d(features[3], ks) >> act() >> self.batch_norm()
-             >> up() >> F.conv1d(features[2], ks) >> act() >> self.batch_norm()
-             >> up() >> F.conv1d(features[1], ks) >> act() >> self.batch_norm()
-             >> up() >> F.conv1d(features[0], ks) >> act() >> self.batch_norm()
-             >> up() >> F.conv1d(1, ks)
+      block = self.dec_normal_block
+      #block = self.dec_residual_block
+      return (  F.dense([self.scale_factor, features[-1]]) >> act() >> self.batch_norm()
+             >> block(features[-1], features[-2])
+             >> block(features[-2], features[-3])
+             >> block(features[-3], features[-4])
+             >> block(features[-4], features[-5])
+             >> block(features[-5], features[-6])
+             >> block(features[-6], features[-7])
+             #>> block(features[-7], features[-8])
+             >> up() >> F.conv1d(1, self.kernel_size)
              >> F.flatten()
              )
 
