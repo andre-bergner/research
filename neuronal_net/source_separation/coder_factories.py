@@ -12,7 +12,7 @@ from keras_tools import functional as fun
 from keras_tools import functional_layers as F
 from keras_tools import extra_layers as XL
 from keras_tools import test_signals as TS
-from keras_tools.upsampling import UpSampling1DZeros
+from keras_tools.upsampling import UpSampling1DZeros, DownSampling1D
 
 
 
@@ -146,6 +146,75 @@ class ConvFactory:
              >> F.flatten()
              )
 
+
+
+
+class ConvFactory2:
+
+   def __init__(self, example_frame, latent_sizes, kernel_size=5, features=[4, 4, 8, 8, 16, 16, 16],
+      use_batch_norm=False, scale_factor=1
+   ):
+      self.input_size = example_frame.shape[-1]
+      self.latent_sizes = latent_sizes
+      self.kernel_size = kernel_size
+      self.features = features
+      if use_batch_norm:
+         self.batch_norm = F.batch_norm
+      else:
+         self.batch_norm = lambda: lambda x: x
+      self.scale_factor = scale_factor
+
+      # 156
+      def layer_sizes(n_input, n_kernel):
+         layer_size = n_input
+         layer_sizes = [layer_size]
+         while layer_size >= n_kernel:
+            layer_size = (layer_size - (n_kernel-1)) // 2
+            layer_sizes.append(layer_size)
+         return layer_sizes
+
+
+   @staticmethod
+   def up1d(factor=2):
+      return fun._ >> UpSampling1DZeros(factor)
+
+   def make_encoder(self, latent_size=None):
+      if latent_size == None: latent_size = sum(self.latent_sizes)
+      features = self.features
+      ks = self.kernel_size
+
+
+      return (  F.append_dimension()
+             >> F.conv1d(features[0], ks, 2, padding='valid') >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[1], ks, 1, padding='valid') >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[1], 1,  2, padding='valid') >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[2], ks, 1, padding='valid') >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[2], 1,  2, padding='valid') >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[3], ks, 1, padding='valid') >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[3], 1,  2, padding='valid') >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[4], ks, 1, padding='valid') >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.conv1d(features[4], 1,  2, padding='valid') >> act() >> self.batch_norm() # >> F.dropout(0.5)
+             >> F.flatten()
+             >> F.dense([latent_size]) >> act()
+             #>> XL.VariationalEncoder(latent_size, self.input_size, beta=0.01, no_sampling=True)
+             )
+
+   def make_decoder(self):
+      up = self.up1d
+      features = self.features
+      ks = self.kernel_size
+      return (  F.dense([self.kernel_size*2+2, features[3]]) >> act() >> self.batch_norm()
+             #>> up(self.kernel_size*2+2)
+             #>> up() >> F.conv1d(features[3], ks, padding='valid') >> act() >> self.batch_norm()
+             >> up() >> F.conv1d(features[2], ks, padding='valid') >> act() >> self.batch_norm()
+                     >> F.conv1d(features[2], 1, padding='valid')  >> act() >> self.batch_norm()
+             >> up() >> F.conv1d(features[1], ks, padding='valid') >> act() >> self.batch_norm()
+                     >> F.conv1d(features[1], 1, padding='valid')  >> act() >> self.batch_norm()
+             >> up() >> F.conv1d(features[0], ks, padding='valid') >> act() >> self.batch_norm()
+                     >> F.conv1d(features[0], 1, padding='valid')  >> act() >> self.batch_norm()
+             >> up() >> F.conv1d(1, ks, padding='valid')
+             >> F.flatten()
+             )
 
 
 class DilatedFactory:
