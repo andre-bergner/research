@@ -50,3 +50,26 @@ class UpSampling1DZeros(Layer):
         config = {'size': self.size}
         base_config = super(UpSampling1D, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+
+
+
+class DownSampling1D(Layer):
+
+    def __init__(self, downsampling_factor=2, **kwargs):
+        super(DownSampling1D, self).__init__(**kwargs)
+        self.downsampling_factor = downsampling_factor
+        self.input_spec = InputSpec(ndim=3)
+
+    def compute_output_shape(self, input_shape):
+        size = input_shape[1] // self.downsampling_factor if input_shape[1] is not None else None
+        return (input_shape[0], size, input_shape[2])
+
+    def call(self, inputs):
+        return inputs[:, ::self.downsampling_factor, :]
+        # return downsample(inputs, self.downsampling_factor, axis=1)
+
+    def get_config(self):
+        config = {'size': self.size}
+        base_config = super(DownSampling1D, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
