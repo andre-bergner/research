@@ -167,11 +167,11 @@ def rotate(xs):
       yield x
 
 
-def make_factor_model(example_frame, factory, noise_stddev, noise_decay=0, shared_encoder=True):
+def make_factor_model(example_frame, factory, noise_stddev, noise_decay=0, final_stddev=0, shared_encoder=True):
 
    x = F.input_like(example_frame)
    #x_2 = F.input_like(example_frame)    # The Variational layer causes conflicts if this is in and not connected
-   eta = lambda: F.noise(noise_stddev, decay=noise_decay)
+   eta = lambda: F.noise(noise_stddev, decay=noise_decay, final_stddev=final_stddev)
    #eta2 = lambda: F.noise(0.1)
 
 
