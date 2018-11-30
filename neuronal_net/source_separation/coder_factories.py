@@ -53,7 +53,7 @@ class DenseFactory:
 class ConvFactory:
 
    def __init__(self, example_frame, latent_sizes, kernel_size=5, features=[4, 4, 8, 8, 16, 16, 16],
-      use_batch_norm=False, scale_factor=1
+      use_batch_norm=False, scale_factor=1, resnet=False
    ):
       self.input_size = example_frame.shape[-1]
       self.latent_sizes = latent_sizes
@@ -65,7 +65,13 @@ class ConvFactory:
          self.batch_norm = lambda: lambda x: x
       self.scale_factor = scale_factor
 
-      # try skip layer / residuals
+      if resnet:
+         self.enc_block = self.enc_residual_block
+         self.dec_block = self.dec_residual_block
+      else:
+         self.enc_block = self.enc_normal_block
+         self.dec_block = self.dec_normal_block
+
 
    @staticmethod
    def up1d(factor=2):
@@ -89,14 +95,13 @@ class ConvFactory:
       return fun._ >> block_f >> act()
 
    def enc_normal_block(self, n_features_in, n_features_out):
-      return F.conv1d(n_features_out, self.kernel_size, 2) >> act() >> self.batch_norm() # >> F.dropout(0.5)
+      return F.conv1d(n_features_out, self.kernel_size, 2) >> act() >> self.batch_norm() # >> F.noise(0.1)
 
    def make_encoder(self, latent_size=None):
       if latent_size == None: latent_size = sum(self.latent_sizes)
       features = self.features
       ks = self.kernel_size
-      block = self.enc_normal_block
-      #block = self.enc_residual_block
+      block = self.enc_block
       return (  F.append_dimension()
              >> block(1,           features[0])
              >> block(features[0], features[1])
@@ -126,15 +131,14 @@ class ConvFactory:
       return fun._ >> block_f >> act()
 
    def dec_normal_block(self, _, n_features_out):
-      return self.up1d() >> F.conv1d(n_features_out, self.kernel_size) >> act() >> self.batch_norm() # >> F.dropout(0.5)
+      return self.up1d() >> F.conv1d(n_features_out, self.kernel_size) >> act() >> self.batch_norm() #>> F.noise(0.1)
 
 
    def make_decoder(self):
       up = self.up1d
       features = self.features
-      block = self.dec_normal_block
-      #block = self.dec_residual_block
-      return (  F.dense([self.scale_factor, features[-1]]) >> act() >> self.batch_norm()
+      block = self.dec_block
+      return (  F.dense([self.scale_factor, features[-1]]) >> act() >> self.batch_norm() # >> F.noise(0.5)
              >> block(features[-1], features[-2])
              >> block(features[-2], features[-3])
              >> block(features[-3], features[-4])
@@ -278,7 +282,10 @@ def rotate(xs):
       yield x
 
 
-def make_factor_model(example_frame, factory, noise_stddev, noise_decay=0, final_stddev=0, shared_encoder=True):
+def make_factor_model(
+   example_frame, factory, noise_stddev, noise_decay=0, final_stddev=0,
+   shared_encoder=True, vanishing_xprojection=False
+):
 
    x = F.input_like(example_frame)
    #x_2 = F.input_like(example_frame)    # The Variational layer causes conflicts if this is in and not connected
@@ -313,8 +320,11 @@ def make_factor_model(example_frame, factory, noise_stddev, noise_decay=0, final
    #m_slow_feat = M.Model([x, x_2], [y])
    #m_slow_feat.add_loss(1*K.mean(K.square( ex_2[:,0:2] - ex[:,0:2] + ex_2[:,4:6] - ex[:,4:6] )))
 
-   # for d,c in zip(decoders, rotate(channels)):
-   #    m.add_loss(1*K.mean(K.square((encoder >> d)(c))))
+   if vanishing_xprojection:
+      # for c1, c2 in zip(channels, rotate(channels)):
+      #    m.add_loss(1*K.mean(K.square(c1(c2))))
+      for d,c in zip(decoders, rotate(channels)):
+         m.add_loss(1*K.mean(K.square((encoder >> d)(c))))
 
    return (
       m,
